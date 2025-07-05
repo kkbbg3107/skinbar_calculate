@@ -223,7 +223,64 @@ class AutoSalaryCalculator:
             return 0, f"業績未達25萬門檻: {personal_performance:,.0f}元"
         
         return bonus, reason
-
+    
+    def calculate_consumption_bonus(self, personal_consumption, total_consumption):
+        """計算個人消耗獎勵季獎金
+        消耗達18萬：可抽消耗總額的1.5%
+        消耗達20萬：可抽消耗總額的2.5%
+        * KOL不計算消耗
+        """
+        bonus = 0
+        reason = ""
+        
+        if personal_consumption >= 200000:
+            # 20萬消耗：2.5%
+            bonus = int(total_consumption * 0.025)
+            reason = f"消耗20萬達標，可抽總消耗{total_consumption:,.0f}元的2.5%"
+        elif personal_consumption >= 180000:
+            # 18萬消耗：1.5%
+            bonus = int(total_consumption * 0.015)
+            reason = f"消耗18萬達標，可抽總消耗{total_consumption:,.0f}元的1.5%"
+        else:
+            reason = f"消耗未達18萬門檻: {personal_consumption:,.0f}元"
+        
+        return bonus, reason
+    
+    def calculate_dual_target_bonus(self, personal_consumption, personal_performance):
+        """計算消耗充值雙達標獎
+        消耗額18萬 + 個人業績額25萬 → 2000元
+        """
+        bonus = 0
+        reason = ""
+        
+        consumption_ok = personal_consumption >= 180000
+        performance_ok = personal_performance >= 250000
+        
+        if consumption_ok and performance_ok:
+            bonus = 2000
+            reason = "消耗18萬+業績25萬雙達標"
+        else:
+            missing = []
+            if not consumption_ok:
+                missing.append(f"消耗{personal_consumption:,.0f}/180,000")
+            if not performance_ok:
+                missing.append(f"業績{personal_performance:,.0f}/250,000")
+            reason = f"未達雙標準: {', '.join(missing)}"
+        
+        return bonus, reason
+    
+    def calculate_advanced_course_bonus(self, advanced_course_total):
+        """計算進階課程工獎
+        類似手技獎金，直接使用V行數據
+        """
+        return advanced_course_total, "進階課程工獎累計"
+    
+    def calculate_product_sales_bonus(self, product_sales_total):
+        """計算產品銷售供獎
+        直接使用X行數據
+        """
+        return product_sales_total, "產品銷售供獎累計"
+    
     def preview_employee_data(self, df):
         """預覽員工數據"""
         print("\n👥 員工數據預覽 (A12-A15):")
@@ -256,20 +313,32 @@ class AutoSalaryCalculator:
                 # 獲取員工姓名 (A行)
                 name = df.iloc[row-1, 0]  # 轉換為0-indexed
                 
-                # 獲取手計供獎累計 (W行)
-                skill_bonus_total = df.iloc[row-1, 22]  # W列是第23列 (0-indexed: 22)
-                
                 # 獲取個人業績 (B行)
                 personal_performance = df.iloc[row-1, 1]  # B列是第2列 (0-indexed: 1)
+                
+                # 獲取個人消耗 (C行)
+                personal_consumption = df.iloc[row-1, 2]  # C列是第3列 (0-indexed: 2)
                 
                 # 獲取人次總數 (D行)
                 person_count = df.iloc[row-1, 3]  # D列是第4列 (0-indexed: 3)
                 
+                # 獲取進階課程工獎 (V行)
+                advanced_course_bonus = df.iloc[row-1, 21]  # V列是第22列 (0-indexed: 21)
+                
+                # 獲取手計供獎累計 (W行)
+                skill_bonus_total = df.iloc[row-1, 22]  # W列是第23列 (0-indexed: 22)
+                
+                # 獲取產品銷售供獎 (X行)
+                product_sales_bonus = df.iloc[row-1, 23]  # X列是第24列 (0-indexed: 23)
+                
                 employees.append({
                     'name': name,
-                    'skill_bonus_total': skill_bonus_total if pd.notna(skill_bonus_total) else 0,
                     'personal_performance': personal_performance if pd.notna(personal_performance) else 0,
+                    'personal_consumption': personal_consumption if pd.notna(personal_consumption) else 0,
                     'person_count': person_count if pd.notna(person_count) else 0,
+                    'advanced_course_bonus': advanced_course_bonus if pd.notna(advanced_course_bonus) else 0,
+                    'skill_bonus_total': skill_bonus_total if pd.notna(skill_bonus_total) else 0,
+                    'product_sales_bonus': product_sales_bonus if pd.notna(product_sales_bonus) else 0,
                     'row': row
                 })
                 
@@ -278,8 +347,8 @@ class AutoSalaryCalculator:
                 
         return employees
 
-    def calculate_seasonal_bonus(self, employees, mask_sales):
-        """計算季獎金 - 人次激勵獎金 + 充值目標達成獎"""
+    def calculate_seasonal_bonus(self, employees, mask_sales, total_consumption):
+        """計算季獎金 - 包含所有六個季獎金細項"""
         print("\n🎉 正在計算季獎金...")
         
         for employee in employees:
@@ -289,11 +358,33 @@ class AutoSalaryCalculator:
             # 1. 人次激勵獎金
             person_count_bonus = self.calculate_person_count_bonus(employee['person_count'])
             
-            # 2. 充值目標達成獎（需要淨膚師編號）
+            # 2. 充值目標達成獎
             charge_target_bonus, charge_reason = self.calculate_charge_target_bonus(
                 employee['personal_performance'], 
                 therapist_id, 
                 mask_sales
+            )
+            
+            # 3. 個人消耗獎勵季獎金
+            consumption_bonus, consumption_reason = self.calculate_consumption_bonus(
+                employee['personal_consumption'], 
+                total_consumption
+            )
+            
+            # 4. 消耗充值雙達標獎
+            dual_target_bonus, dual_reason = self.calculate_dual_target_bonus(
+                employee['personal_consumption'], 
+                employee['personal_performance']
+            )
+            
+            # 5. 進階課程工獎
+            advanced_course_bonus, advanced_reason = self.calculate_advanced_course_bonus(
+                employee['advanced_course_bonus']
+            )
+            
+            # 6. 產品銷售供獎
+            product_sales_bonus, product_reason = self.calculate_product_sales_bonus(
+                employee['product_sales_bonus']
             )
             
             # 獲取面膜數量用於顯示
@@ -302,31 +393,48 @@ class AutoSalaryCalculator:
             # 將季獎金資訊添加到員工資料
             employee['person_count_bonus'] = person_count_bonus
             employee['charge_target_bonus'] = charge_target_bonus
+            employee['consumption_bonus'] = consumption_bonus
+            employee['dual_target_bonus'] = dual_target_bonus
+            employee['advanced_course_bonus'] = advanced_course_bonus
+            employee['product_sales_bonus'] = product_sales_bonus
             employee['therapist_id'] = therapist_id
             
             print(f"\n   {employee['name']} (淨膚師{therapist_id}):")
-            print(f"      業績: {employee['personal_performance']:,.0f}元, 人次: {employee['person_count']:.0f}, 水光面膜: {mask_count}組")
+            print(f"      業績: {employee['personal_performance']:,.0f}元, 消耗: {employee['personal_consumption']:,.0f}元")
+            print(f"      人次: {employee['person_count']:.0f}, 水光面膜: {mask_count}組")
             
-            # 顯示人次激勵獎金
-            print(f"      人次激勵獎金: {person_count_bonus:,}元", end="")
+            # 顯示各項季獎金
+            print(f"      📈 人次激勵獎金: {person_count_bonus:,}元", end="")
             if person_count_bonus > 0:
                 if employee['person_count'] > 132:
-                    tier1_count = 132 - 111 + 1  # 111-132人
-                    tier2_count = employee['person_count'] - 132  # 133以上
+                    tier1_count = 132 - 111 + 1
+                    tier2_count = employee['person_count'] - 132
                     print(f" (111-132人: {tier1_count}×100 + 133-{employee['person_count']:.0f}人: {tier2_count}×200)")
                 elif employee['person_count'] >= 110:
-                    tier1_count = employee['person_count'] - 111 + 1  # 111到person_count
+                    tier1_count = employee['person_count'] - 111 + 1
                     print(f" (111-{employee['person_count']:.0f}人: {tier1_count:.0f}×100)")
                 else:
                     print()
             else:
                 print()
             
-            # 顯示充值目標達成獎
-            if charge_target_bonus > 0:
-                print(f"      充值目標達成獎: {charge_target_bonus:,}元 ✅ {charge_reason}")
-            else:
-                print(f"      充值目標達成獎: 0元 ❌ {charge_reason}")
+            # 充值目標達成獎
+            status = "✅" if charge_target_bonus > 0 else "❌"
+            print(f"      🎯 充值目標達成獎: {charge_target_bonus:,}元 {status} {charge_reason}")
+            
+            # 個人消耗獎勵季獎金
+            status = "✅" if consumption_bonus > 0 else "❌"
+            print(f"      💧 個人消耗獎勵: {consumption_bonus:,}元 {status} {consumption_reason}")
+            
+            # 消耗充值雙達標獎
+            status = "✅" if dual_target_bonus > 0 else "❌"
+            print(f"      🎪 消耗充值雙達標獎: {dual_target_bonus:,}元 {status} {dual_reason}")
+            
+            # 進階課程工獎
+            print(f"      📚 進階課程工獎: {advanced_course_bonus:,}元 ({advanced_reason})")
+            
+            # 產品銷售供獎
+            print(f"      🛍️  產品銷售供獎: {product_sales_bonus:,}元 ({product_reason})")
         
         return employees
 
@@ -371,16 +479,24 @@ class AutoSalaryCalculator:
             overtime = self.overtime_pay
             skill_bonus = employee['skill_bonus_total']
             
-            # 判斷是否為正式淨膚師，決定是否有團獎
+            # 判斷是否為正式淨膚師，決定是否有團獎和季獎金
             is_formal_staff = employee['row'] in formal_staff_positions
             team_bonus = team_bonus_per_person if is_formal_staff else 0
             
             # 季獎金 - 只有正式淨膚師才有
             person_count_bonus = employee.get('person_count_bonus', 0) if is_formal_staff else 0
             charge_target_bonus = employee.get('charge_target_bonus', 0) if is_formal_staff else 0
+            consumption_bonus = employee.get('consumption_bonus', 0) if is_formal_staff else 0
+            dual_target_bonus = employee.get('dual_target_bonus', 0) if is_formal_staff else 0
+            
+            # 進階課程工獎和產品銷售供獎（所有員工都有）
+            advanced_course_bonus = employee.get('advanced_course_bonus', 0)
+            product_sales_bonus = employee.get('product_sales_bonus', 0)
             
             # 計算總薪水
-            total_salary = base + meal + overtime + skill_bonus + team_bonus + person_count_bonus + charge_target_bonus
+            total_salary = (base + meal + overtime + skill_bonus + team_bonus + 
+                          person_count_bonus + charge_target_bonus + consumption_bonus + 
+                          dual_target_bonus + advanced_course_bonus + product_sales_bonus)
             
             result = {
                 'name': employee['name'],
@@ -391,6 +507,10 @@ class AutoSalaryCalculator:
                 'team_bonus': team_bonus,
                 'person_count_bonus': person_count_bonus,
                 'charge_target_bonus': charge_target_bonus,
+                'consumption_bonus': consumption_bonus,
+                'dual_target_bonus': dual_target_bonus,
+                'advanced_course_bonus': advanced_course_bonus,
+                'product_sales_bonus': product_sales_bonus,
                 'total_salary': total_salary,
                 'is_formal_staff': is_formal_staff
             }
@@ -426,8 +546,12 @@ class AutoSalaryCalculator:
             print(f"   加班費: {result['overtime_pay']:,.0f} 元")
             print(f"   手技獎金: {result['skill_bonus']:,.0f} 元")
             print(f"   團獎: {result['team_bonus']:,} 元")
-            print(f"   人次激勵獎金: {result['person_count_bonus']:,} 元")
-            print(f"   充值目標達成獎: {result['charge_target_bonus']:,} 元")
+            print(f"   📈 人次激勵獎金: {result['person_count_bonus']:,} 元")
+            print(f"   🎯 充值目標達成獎: {result['charge_target_bonus']:,} 元")
+            print(f"   💧 個人消耗獎勵: {result['consumption_bonus']:,} 元")
+            print(f"   🎪 消耗充值雙達標獎: {result['dual_target_bonus']:,} 元")
+            print(f"   📚 進階課程工獎: {result['advanced_course_bonus']:,} 元")
+            print(f"   🛍️  產品銷售供獎: {result['product_sales_bonus']:,} 元")
             print("   ─────────────────────────────")
             print(f"   💰 總薪水: {result['total_salary']:,} 元")
             
@@ -493,7 +617,7 @@ def main():
         return
     
     # 計算季獎金
-    employees = calculator.calculate_seasonal_bonus(employees, mask_sales)
+    employees = calculator.calculate_seasonal_bonus(employees, mask_sales, total_consumption)
     
     # 計算團獎
     team_bonus_per_person = calculator.calculate_team_bonus(
