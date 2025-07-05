@@ -654,6 +654,44 @@ class AutoSalaryCalculator:
             print(f"❌ 讀取Excel文件時發生錯誤: {e}")
             raise
 
+    def get_dynamic_employee_rows(self, df, start_row=12):
+        """動態獲取員工行號，從指定行開始，直到B行為0為止"""
+        employee_rows = []
+        row = start_row
+        
+        print(f"🔍 動態搜尋員工數據（從第{start_row}行開始）...")
+        
+        while row <= df.shape[0]:  # 不超過資料範圍
+            try:
+                # 檢查B行的值（個人業績）
+                b_value = df.iloc[row-1, 1]  # B列是第2列 (0-indexed: 1)
+                
+                # 如果B行為0、空值或非數字，停止搜尋
+                if pd.isna(b_value) or b_value == 0:
+                    print(f"   第{row}行 B列為 {b_value}，停止搜尋")
+                    break
+                
+                # 檢查A行是否有員工姓名
+                a_value = df.iloc[row-1, 0]  # A列員工姓名
+                if pd.notna(a_value) and str(a_value).strip():
+                    employee_rows.append(row)
+                    print(f"   ✅ 第{row}行: {a_value} (業績: {b_value})")
+                else:
+                    print(f"   ⚠️  第{row}行: A列無姓名，跳過")
+                
+                row += 1
+                
+            except IndexError:
+                # 超出資料範圍
+                print(f"   第{row}行超出資料範圍，停止搜尋")
+                break
+            except Exception as e:
+                print(f"   ❌ 第{row}行讀取錯誤: {e}")
+                break
+        
+        print(f"🎯 找到 {len(employee_rows)} 位淨膚師: 行號 {employee_rows}")
+        return employee_rows
+
 def main():
     print("🏢 淨膚寶薪水計算小程式 - 自動化版本（含季獎金）")
     print("="*60)
@@ -701,8 +739,13 @@ def main():
             print("❌ 請輸入有效的行號")
             return
     
-    # 固定讀取A12-A15的員工數據
-    employee_rows = [12, 13, 14, 15]  # A12到A15
+    # 動態讀取員工數據（從A12開始，直到B行為0）
+    employee_rows = calculator.get_dynamic_employee_rows(df, start_row=12)
+    
+    if not employee_rows:
+        print("❌ 沒有找到任何員工數據")
+        return
+    
     employees = calculator.get_employee_data(df, employee_rows)
     
     if not employees:
