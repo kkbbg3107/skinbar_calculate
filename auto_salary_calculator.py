@@ -200,7 +200,7 @@ class AutoSalaryCalculator:
         """計算充值目標達成獎
         條件：同時達成業績門檻 AND 水光面膜銷售7組以上
         - 業績25萬 + 面膜7組 → 2000元
-        - 業績30萬 + 面膜7組 → 7000元（2000+5000）
+        - 業績30萬 + 面膜7組 → 7000元
         - 面膜不到7組則無獎金
         """
         bonus = 0
@@ -208,24 +208,21 @@ class AutoSalaryCalculator:
         # 獲取該淨膚師的水光面膜銷售數量
         mask_count = mask_sales.get(str(therapist_id), 0)
         
-        print(f"      淨膚師{therapist_id}: 業績{personal_performance:,.0f}元, 水光面膜{mask_count}組")
-        
         # 先檢查面膜銷售責任額（必須7組以上才能有獎金）
         if mask_count < 7:
-            print(f"      ❌ 水光面膜未達責任額: {mask_count}/7組 → 無充值目標達成獎")
-            return 0
+            return 0, f"面膜未達責任額: {mask_count}/7組"
         
         # 面膜達標後，檢查業績門檻
         if personal_performance >= 300000:
             bonus = 7000  # 30萬業績 + 7組面膜 = 7000元
-            print(f"      ✅ 業績30萬+面膜7組達標 → 充值目標達成獎: {bonus}元")
+            reason = f"業績30萬+面膜{mask_count}組達標"
         elif personal_performance >= 250000:
             bonus = 2000  # 25萬業績 + 7組面膜 = 2000元  
-            print(f"      ✅ 業績25萬+面膜7組達標 → 充值目標達成獎: {bonus}元")
+            reason = f"業績25萬+面膜{mask_count}組達標"
         else:
-            print(f"      ❌ 業績未達25萬門檻: {personal_performance:,.0f}元 → 無充值目標達成獎")
+            return 0, f"業績未達25萬門檻: {personal_performance:,.0f}元"
         
-        return bonus
+        return bonus, reason
 
     def preview_employee_data(self, df):
         """預覽員工數據"""
@@ -286,17 +283,21 @@ class AutoSalaryCalculator:
         print("\n🎉 正在計算季獎金...")
         
         for employee in employees:
+            # 根據員工行號推算淨膚師編號 (12->1, 13->2, 14->3, 15->4)
+            therapist_id = employee['row'] - 11
+            
             # 1. 人次激勵獎金
             person_count_bonus = self.calculate_person_count_bonus(employee['person_count'])
             
             # 2. 充值目標達成獎（需要淨膚師編號）
-            # 根據員工行號推算淨膚師編號 (12->1, 13->2, 14->3, 15->4)
-            therapist_id = employee['row'] - 11
-            charge_target_bonus = self.calculate_charge_target_bonus(
+            charge_target_bonus, charge_reason = self.calculate_charge_target_bonus(
                 employee['personal_performance'], 
                 therapist_id, 
                 mask_sales
             )
+            
+            # 獲取面膜數量用於顯示
+            mask_count = mask_sales.get(str(therapist_id), 0)
             
             # 將季獎金資訊添加到員工資料
             employee['person_count_bonus'] = person_count_bonus
@@ -304,20 +305,28 @@ class AutoSalaryCalculator:
             employee['therapist_id'] = therapist_id
             
             print(f"\n   {employee['name']} (淨膚師{therapist_id}):")
-            print(f"      人次{employee['person_count']:.0f} → 人次激勵獎金{person_count_bonus:,}元")
+            print(f"      業績: {employee['personal_performance']:,.0f}元, 人次: {employee['person_count']:.0f}, 水光面膜: {mask_count}組")
             
-            # 顯示人次激勵詳細計算過程
+            # 顯示人次激勵獎金
+            print(f"      人次激勵獎金: {person_count_bonus:,}元", end="")
             if person_count_bonus > 0:
                 if employee['person_count'] > 132:
                     tier1_count = 132 - 111 + 1  # 111-132人
                     tier2_count = employee['person_count'] - 132  # 133以上
-                    print(f"         詳細: 111-132人({tier1_count}人×100元) + 133-{employee['person_count']:.0f}人({tier2_count}人×200元)")
+                    print(f" (111-132人: {tier1_count}×100 + 133-{employee['person_count']:.0f}人: {tier2_count}×200)")
                 elif employee['person_count'] >= 110:
                     tier1_count = employee['person_count'] - 111 + 1  # 111到person_count
-                    print(f"         詳細: 111-{employee['person_count']:.0f}人({tier1_count:.0f}人×100元)")
+                    print(f" (111-{employee['person_count']:.0f}人: {tier1_count:.0f}×100)")
+                else:
+                    print()
+            else:
+                print()
             
             # 顯示充值目標達成獎
-            print(f"      充值目標達成獎: {charge_target_bonus:,}元")
+            if charge_target_bonus > 0:
+                print(f"      充值目標達成獎: {charge_target_bonus:,}元 ✅ {charge_reason}")
+            else:
+                print(f"      充值目標達成獎: 0元 ❌ {charge_reason}")
         
         return employees
 
