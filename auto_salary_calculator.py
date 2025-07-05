@@ -82,7 +82,7 @@ class AutoSalaryCalculator:
                 print("請確認Excel檔案中有此工作表名稱")
                 return None, 0, 0, []
             
-            df = pd.read_excel(excel_file, sheet_name='月報表彙整', header=None)
+            df = self.safe_read_excel(excel_file, sheet_name='月報表彙整', header=None)
             print(f"✅ 成功讀取Excel，共 {df.shape[0]} 行 {df.shape[1]} 列")
             
             # 找出所有日期工作表（排除月報表彙整）
@@ -102,7 +102,7 @@ class AutoSalaryCalculator:
             
             for sheet_name in date_sheets:
                 try:
-                    sheet_df = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
+                    sheet_df = self.safe_read_excel(excel_file, sheet_name=sheet_name, header=None)
                     
                     # 讀取 E3 (業績) 和 E5 (消耗)
                     performance_value = sheet_df.iloc[2, 4] if sheet_df.shape[0] > 2 and sheet_df.shape[1] > 4 else 0  # E3
@@ -137,7 +137,7 @@ class AutoSalaryCalculator:
         
         for sheet_name in date_sheets:
             try:
-                sheet_df = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
+                sheet_df = self.safe_read_excel(excel_file, sheet_name=sheet_name, header=None)
                 
                 # 檢查 F21:H21 以下的欄位（從第21行開始，0-indexed為20）
                 start_row = 20  # F21 對應 index 20
@@ -614,6 +614,45 @@ class AutoSalaryCalculator:
             reason = f"未達標準: {', '.join(missing)}"
         
         return bonus, reason
+    
+    def safe_read_excel(self, file_path, **kwargs):
+        """安全讀取 Excel 檔案，處理 OLE2 compound document 錯誤"""
+        try:
+            file_path = str(file_path)
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"檔案不存在: {file_path}")
+            
+            file_ext = Path(file_path).suffix.lower()
+            
+            # 根據副檔名選擇適當的引擎
+            if file_ext == '.xlsx':
+                try:
+                    return pd.read_excel(file_path, engine='openpyxl', **kwargs)
+                except Exception as e:
+                    print(f"⚠️  openpyxl 引擎失敗: {e}")
+            elif file_ext == '.xls':
+                try:
+                    return pd.read_excel(file_path, engine='xlrd', **kwargs)
+                except Exception as e:
+                    print(f"⚠️  xlrd 引擎失敗: {e}")
+            
+            # 嘗試自動偵測引擎
+            try:
+                return pd.read_excel(file_path, **kwargs)
+            except Exception as auto_error:
+                if "OLE2" in str(auto_error) or "compound document" in str(auto_error):
+                    print("🔧 偵測到 OLE2 錯誤，嘗試修復...")
+                    print("💡 建議解決方案:")
+                    print("1. 在 Excel 中開啟檔案，另存為 .xlsx 格式")
+                    print("2. 檢查檔案是否完整下載")
+                    print("3. 確認檔案沒有被其他程序佔用")
+                    raise Exception(f"Excel 檔案格式錯誤 (OLE2): {auto_error}")
+                else:
+                    raise auto_error
+                    
+        except Exception as e:
+            print(f"❌ 讀取Excel文件時發生錯誤: {e}")
+            raise
 
 def main():
     print("🏢 淨膚寶薪水計算小程式 - 自動化版本（含季獎金）")
