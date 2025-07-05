@@ -47,7 +47,7 @@ class AutoSalaryCalculator:
         print(f"預設Excel檔案路徑: {self.default_excel_path}")
         
         if self.default_excel_path.exists():
-            use_default = input("使用預設路徑嗎？ (y/n，直接按Enter使用預設): ").__strip__().lower()
+            use_default = input("使用預設路徑嗎？ (y/n，直接按Enter使用預設): ").strip().lower()
             if use_default in ['', 'y', 'yes']:
                 return str(self.default_excel_path)
         else:
