@@ -147,7 +147,7 @@ class AutoSalaryCalculator:
                     for col in [5, 6, 7]:  # F=5, G=6, H=7 (0-indexed)
                         if col < sheet_df.shape[1]:
                             cell_value = sheet_df.iloc[index, col]
-                            if pd.notna(cell_value) and "水光面膜" in str(cell_value):
+                            if pd.notna(cell_value) and "水光面膜3入" in str(cell_value):
                                 # 找到水光面膜，檢查同一行N列的淨膚師編號
                                 if 13 < sheet_df.shape[1]:  # N列是第14列 (0-indexed: 13)
                                     therapist_id = sheet_df.iloc[index, 13]  # N列
@@ -156,7 +156,7 @@ class AutoSalaryCalculator:
                                         if therapist_key not in mask_sales:
                                             mask_sales[therapist_key] = 0
                                         mask_sales[therapist_key] += 1
-                                        print(f"   {sheet_name}: 淨膚師{therapist_key} +1 水光面膜 (第{index+1}行)")
+                                        print(f"   {sheet_name}: 淨膚師{therapist_key} +1 水光面膜3入 (第{index+1}行)")
                                         break  # 避免同一行重複計算
                 
             except Exception as e:
@@ -283,10 +283,10 @@ class AutoSalaryCalculator:
     
     def preview_employee_data(self, df):
         """預覽員工數據"""
-        print("\n👥 員工數據預覽 (A12-A15):")
+        print("\n👥 員工數據預覽 (A12-A17):")
         print("-" * 70)
         
-        for i, row in enumerate([12, 13, 14, 15], 1):
+        for i, row in enumerate([12, 13, 14, 15, 16, 17], 1):
             try:
                 name = df.iloc[row-1, 0]  # A行
                 personal_performance = df.iloc[row-1, 1]  # B行
@@ -554,8 +554,30 @@ class AutoSalaryCalculator:
         print("="*70)
         
         total_all_salary = 0
+        total_all_seasonal_bonus = 0
+        
         for i, result in enumerate(results, 1):
             staff_type = "正式淨膚師" if result['is_formal_staff'] else "一般員工"
+            
+            # 計算基本薪資（不含季獎金）
+            basic_salary = (
+                result['base_salary'] +
+                result['meal_allowance'] + 
+                result['overtime_pay'] + 
+                result['skill_bonus'] + 
+                result['team_bonus']
+            )
+            
+            # 計算季獎金總額
+            seasonal_bonus_total = (
+                result['person_count_bonus'] +
+                result['charge_target_bonus'] +
+                result['consumption_bonus'] +
+                result['dual_target_bonus'] +
+                result['advanced_course_bonus'] +
+                result['product_sales_bonus'] +
+                result['new_customer_rate_bonus']
+            )
             
             print(f"\n📋 員工 {i}: {result['name']}")
             print(f"   身份: {staff_type}")
@@ -564,6 +586,10 @@ class AutoSalaryCalculator:
             print(f"   加班費: {result['overtime_pay']:,.0f} 元")
             print(f"   手技獎金: {result['skill_bonus']:,.0f} 元")
             print(f"   團獎: {result['team_bonus']:,} 元")
+            print("   ─────────────────────────────")
+            print(f"   💰 總薪水: {basic_salary:,.0f} 元")
+            print()
+            print("   🎊 季獎金明細:")
             print(f"   📈 人次激勵獎金: {result['person_count_bonus']:,} 元")
             print(f"   🎯 充值目標達成獎: {result['charge_target_bonus']:,} 元")
             print(f"   💧 個人消耗獎勵: {result['consumption_bonus']:,} 元")
@@ -572,12 +598,20 @@ class AutoSalaryCalculator:
             print(f"   🛍️  產品銷售供獎: {result['product_sales_bonus']:,} 元")
             print(f"   🎯 新客成交率70%獎金: {result['new_customer_rate_bonus']:,} 元")
             print("   ─────────────────────────────")
-            print(f"   💰 總薪水: {result['total_salary']:,} 元")
+            print(f"   🎊 季獎金小計: {seasonal_bonus_total:,.0f} 元")
+            print("   ─────────────────────────────")
+            print(f"   � 總計: {result['total_salary']:,.0f} 元")
             
-            total_all_salary += result['total_salary']
+            total_all_salary += basic_salary
+            total_all_seasonal_bonus += seasonal_bonus_total
         
         print("\n" + "="*70)
-        print(f"💵 薪資總計: {total_all_salary:,} 元")
+        print("📊 全店薪資總覽")
+        print("="*70)
+        print(f"� 基本薪資總計: {total_all_salary:,.0f} 元 (底薪+伙食費+加班費+手技獎金+團獎)")
+        print(f"🎊 季獎金總計: {total_all_seasonal_bonus:,.0f} 元")
+        print("─"*70)
+        print(f"�💵 全店薪資總額: {total_all_salary + total_all_seasonal_bonus:,.0f} 元")
         print("="*70)
 
     def calculate_new_customer_rate_bonus(self, person_count, new_customer_rate):
@@ -747,8 +781,8 @@ def main():
     for i in range(num_formal_staff):
         try:
             row = int(input(f"第{i+1}位正式淨膚師的行號: "))
-            if row not in [12, 13, 14, 15]:
-                print("⚠️  警告: 行號不在預期範圍內 (12-15)")
+            if row not in [12, 13, 14, 15, 16, 17]:
+                print("⚠️  警告: 行號不在預期範圍內 (12-17)")
             formal_staff_positions.append(row)
         except ValueError:
             print("❌ 請輸入有效的行號")
