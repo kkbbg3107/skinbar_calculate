@@ -661,23 +661,31 @@ class AutoSalaryCalculator:
         
         print(f"🔍 動態搜尋員工數據（從第{start_row}行開始）...")
         
-        while row <= df.shape[0]:  # 不超過資料範圍
+        # 增加最大搜尋範圍，避免無限循環
+        max_row = min(df.shape[0], start_row + 15)  # 最多搜尋15行
+        
+        while row <= max_row:
             try:
                 # 檢查B行的值（個人業績）
-                b_value = df.iloc[row-1, 1]  # B列是第2列 (0-indexed: 1)
+                b_value = df.iloc[row-1, 1] if df.shape[1] > 1 else None
                 
-                # 如果B行為0、空值或非數字，停止搜尋
+                # 檢查A行是否有員工姓名
+                a_value = df.iloc[row-1, 0] if df.shape[0] >= row else None
+                
+                print(f"   第{row}行檢查: A='{a_value}' B='{b_value}'")
+                
+                # 如果B行為0、空值，停止搜尋
                 if pd.isna(b_value) or b_value == 0:
                     print(f"   第{row}行 B列為 {b_value}，停止搜尋")
                     break
                 
-                # 檢查A行是否有員工姓名
-                a_value = df.iloc[row-1, 0]  # A列員工姓名
+                # 如果A行有員工姓名且B行有數值
                 if pd.notna(a_value) and str(a_value).strip():
                     employee_rows.append(row)
-                    print(f"   ✅ 第{row}行: {a_value} (業績: {b_value})")
+                    print(f"   ✅ 第{row}行: {a_value} (業績: {b_value:,.0f})")
                 else:
-                    print(f"   ⚠️  第{row}行: A列無姓名，跳過")
+                    # A行無姓名但B行有值，可能是格式問題，繼續搜尋但不加入清單
+                    print(f"   ⚠️  第{row}行: A列無姓名但B列有值 {b_value}，跳過但繼續搜尋")
                 
                 row += 1
                 
@@ -690,6 +698,13 @@ class AutoSalaryCalculator:
                 break
         
         print(f"🎯 找到 {len(employee_rows)} 位淨膚師: 行號 {employee_rows}")
+        return employee_rows
+
+    def get_manual_employee_rows(self, start_row=12, end_row=17):
+        """手動指定員工行號範圍"""
+        employee_rows = list(range(start_row, end_row + 1))
+        print(f"🔧 手動指定員工範圍: 第{start_row}行到第{end_row}行")
+        print(f"   員工行號: {employee_rows}")
         return employee_rows
 
 def main():
@@ -739,8 +754,25 @@ def main():
             print("❌ 請輸入有效的行號")
             return
     
-    # 動態讀取員工數據（從A12開始，直到B行為0）
-    employee_rows = calculator.get_dynamic_employee_rows(df, start_row=12)
+    # 選擇員工數據讀取方式
+    print("\n📋 員工數據讀取方式:")
+    print("1. 自動檢測（根據B行數值判斷）")
+    print("2. 手動指定範圍（例如A12到A17）")
+    
+    detection_choice = input("請選擇 (1/2，直接按Enter使用自動檢測): ").strip()
+    
+    if detection_choice == "2":
+        # 手動指定範圍
+        try:
+            start_row = int(input("起始行號 (預設12): ") or "12")
+            end_row = int(input("結束行號 (預設17): ") or "17")
+            employee_rows = calculator.get_manual_employee_rows(start_row, end_row)
+        except ValueError:
+            print("❌ 輸入錯誤，使用預設範圍 A12-A17")
+            employee_rows = calculator.get_manual_employee_rows(12, 17)
+    else:
+        # 自動檢測（預設）
+        employee_rows = calculator.get_dynamic_employee_rows(df, start_row=12)
     
     if not employee_rows:
         print("❌ 沒有找到任何員工數據")
