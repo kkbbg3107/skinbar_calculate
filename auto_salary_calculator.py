@@ -47,7 +47,7 @@ class AutoSalaryCalculator:
         print(f"預設Excel檔案路徑: {self.default_excel_path}")
         
         if self.default_excel_path.exists():
-            use_default = input("使用預設路徑嗎？ (y/n，直接按Enter使用預設): ").strip().lower()
+            use_default = input("使用預設路徑嗎？ (y/n，直接按Enter使用預設): ").__strip__().lower()
             if use_default in ['', 'y', 'yes']:
                 return str(self.default_excel_path)
         else:
@@ -322,6 +322,9 @@ class AutoSalaryCalculator:
                 # 獲取人次總數 (D行)
                 person_count = df.iloc[row-1, 3]  # D列是第4列 (0-indexed: 3)
                 
+                # 獲取新客實際成交率 (I行)
+                new_customer_rate = df.iloc[row-1, 8]  # I列是第9列 (0-indexed: 8)
+                
                 # 獲取進階課程工獎 (V行)
                 advanced_course_bonus = df.iloc[row-1, 21]  # V列是第22列 (0-indexed: 21)
                 
@@ -336,6 +339,7 @@ class AutoSalaryCalculator:
                     'personal_performance': personal_performance if pd.notna(personal_performance) else 0,
                     'personal_consumption': personal_consumption if pd.notna(personal_consumption) else 0,
                     'person_count': person_count if pd.notna(person_count) else 0,
+                    'new_customer_rate': new_customer_rate if pd.notna(new_customer_rate) else 0,
                     'advanced_course_bonus': advanced_course_bonus if pd.notna(advanced_course_bonus) else 0,
                     'skill_bonus_total': skill_bonus_total if pd.notna(skill_bonus_total) else 0,
                     'product_sales_bonus': product_sales_bonus if pd.notna(product_sales_bonus) else 0,
@@ -387,6 +391,12 @@ class AutoSalaryCalculator:
                 employee['product_sales_bonus']
             )
             
+            # 7. 新客成交率70%獎金
+            new_customer_rate_bonus, new_customer_reason = self.calculate_new_customer_rate_bonus(
+                employee['person_count'],
+                employee['new_customer_rate']
+            )
+            
             # 獲取面膜數量用於顯示
             mask_count = mask_sales.get(str(therapist_id), 0)
             
@@ -397,11 +407,12 @@ class AutoSalaryCalculator:
             employee['dual_target_bonus'] = dual_target_bonus
             employee['advanced_course_bonus'] = advanced_course_bonus
             employee['product_sales_bonus'] = product_sales_bonus
+            employee['new_customer_rate_bonus'] = new_customer_rate_bonus
             employee['therapist_id'] = therapist_id
             
             print(f"\n   {employee['name']} (淨膚師{therapist_id}):")
             print(f"      業績: {employee['personal_performance']:,.0f}元, 消耗: {employee['personal_consumption']:,.0f}元")
-            print(f"      人次: {employee['person_count']:.0f}, 水光面膜: {mask_count}組")
+            print(f"      人次: {employee['person_count']:.0f}, 水光面膜: {mask_count}組, 新客成交率: {employee['new_customer_rate']:.1f}%")
             
             # 顯示各項季獎金
             print(f"      📈 人次激勵獎金: {person_count_bonus:,}元", end="")
@@ -435,6 +446,10 @@ class AutoSalaryCalculator:
             
             # 產品銷售供獎
             print(f"      🛍️  產品銷售供獎: {product_sales_bonus:,}元 ({product_reason})")
+            
+            # 新客成交率70%獎金
+            status = "✅" if new_customer_rate_bonus > 0 else "❌"
+            print(f"      🎯 新客成交率70%獎金: {new_customer_rate_bonus:,}元 {status} {new_customer_reason}")
         
         return employees
 
@@ -488,6 +503,7 @@ class AutoSalaryCalculator:
             charge_target_bonus = employee.get('charge_target_bonus', 0) if is_formal_staff else 0
             consumption_bonus = employee.get('consumption_bonus', 0) if is_formal_staff else 0
             dual_target_bonus = employee.get('dual_target_bonus', 0) if is_formal_staff else 0
+            new_customer_rate_bonus = employee.get('new_customer_rate_bonus', 0) if is_formal_staff else 0
             
             # 進階課程工獎和產品銷售供獎（所有員工都有）
             advanced_course_bonus = employee.get('advanced_course_bonus', 0)
@@ -496,7 +512,8 @@ class AutoSalaryCalculator:
             # 計算總薪水
             total_salary = (base + meal + overtime + skill_bonus + team_bonus + 
                           person_count_bonus + charge_target_bonus + consumption_bonus + 
-                          dual_target_bonus + advanced_course_bonus + product_sales_bonus)
+                          dual_target_bonus + advanced_course_bonus + product_sales_bonus + 
+                          new_customer_rate_bonus)
             
             result = {
                 'name': employee['name'],
@@ -511,6 +528,7 @@ class AutoSalaryCalculator:
                 'dual_target_bonus': dual_target_bonus,
                 'advanced_course_bonus': advanced_course_bonus,
                 'product_sales_bonus': product_sales_bonus,
+                'new_customer_rate_bonus': new_customer_rate_bonus,
                 'total_salary': total_salary,
                 'is_formal_staff': is_formal_staff
             }
@@ -552,6 +570,7 @@ class AutoSalaryCalculator:
             print(f"   🎪 消耗充值雙達標獎: {result['dual_target_bonus']:,} 元")
             print(f"   📚 進階課程工獎: {result['advanced_course_bonus']:,} 元")
             print(f"   🛍️  產品銷售供獎: {result['product_sales_bonus']:,} 元")
+            print(f"   🎯 新客成交率70%獎金: {result['new_customer_rate_bonus']:,} 元")
             print("   ─────────────────────────────")
             print(f"   💰 總薪水: {result['total_salary']:,} 元")
             
@@ -560,6 +579,41 @@ class AutoSalaryCalculator:
         print("\n" + "="*70)
         print(f"💵 薪資總計: {total_all_salary:,} 元")
         print("="*70)
+
+    def calculate_new_customer_rate_bonus(self, person_count, new_customer_rate):
+        """計算新客成交率70%獎金
+        條件：客人數量達132人 + 新客實際成交率70%
+        獎金：4000元（需人工檢查出勤狀況）
+        """
+        bonus = 0
+        reason = ""
+        
+        # 檢查人次是否達132人
+        person_count_ok = person_count >= 132
+        
+        # 檢查新客成交率是否達70%（0.7）
+        # I行的數據可能是百分比格式或小數格式，需要處理
+        if new_customer_rate > 1:
+            # 如果大於1，假設是百分比格式（如70表示70%）
+            actual_rate = new_customer_rate / 100
+        else:
+            # 如果小於等於1，假設是小數格式（如0.7表示70%）
+            actual_rate = new_customer_rate
+        
+        rate_ok = actual_rate >= 0.7
+        
+        if person_count_ok and rate_ok:
+            bonus = 4000
+            reason = f"人次{person_count:.0f}人+成交率{actual_rate*100:.1f}%達標（需人工檢查出勤狀況）"
+        else:
+            missing = []
+            if not person_count_ok:
+                missing.append(f"人次{person_count:.0f}/132人")
+            if not rate_ok:
+                missing.append(f"成交率{actual_rate*100:.1f}%/70%")
+            reason = f"未達標準: {', '.join(missing)}"
+        
+        return bonus, reason
 
 def main():
     print("🏢 淨膚寶薪水計算小程式 - 自動化版本（含季獎金）")
