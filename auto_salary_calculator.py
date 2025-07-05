@@ -139,29 +139,34 @@ class AutoSalaryCalculator:
             try:
                 sheet_df = pd.read_excel(excel_file, sheet_name=sheet_name, header=None)
                 
-                # 檢查F:H列（細項）是否包含"水光面膜"
-                for index, row in sheet_df.iterrows():
+                # 檢查 F21:H21 以下的欄位（從第21行開始，0-indexed為20）
+                start_row = 20  # F21 對應 index 20
+                
+                for index in range(start_row, sheet_df.shape[0]):
                     # 檢查F、G、H列
                     for col in [5, 6, 7]:  # F=5, G=6, H=7 (0-indexed)
                         if col < sheet_df.shape[1]:
                             cell_value = sheet_df.iloc[index, col]
                             if pd.notna(cell_value) and "水光面膜" in str(cell_value):
-                                # 找到水光面膜，檢查N列的淨膚師編號
+                                # 找到水光面膜，檢查同一行N列的淨膚師編號
                                 if 13 < sheet_df.shape[1]:  # N列是第14列 (0-indexed: 13)
                                     therapist_id = sheet_df.iloc[index, 13]  # N列
                                     if pd.notna(therapist_id):
-                                        therapist_key = str(therapist_id).strip()
+                                        therapist_key = str(int(float(therapist_id))).strip()  # 確保是整數格式
                                         if therapist_key not in mask_sales:
                                             mask_sales[therapist_key] = 0
                                         mask_sales[therapist_key] += 1
-                                        print(f"   {sheet_name}: 淨膚師{therapist_key} +1 水光面膜")
+                                        print(f"   {sheet_name}: 淨膚師{therapist_key} +1 水光面膜 (第{index+1}行)")
                                         break  # 避免同一行重複計算
                 
             except Exception as e:
                 print(f"⚠️  統計工作表 '{sheet_name}' 水光面膜時發生錯誤: {e}")
                 continue
         
-        print(f"\n🎭 水光面膜統計結果: {mask_sales}")
+        print("\n🎭 水光面膜統計結果:")
+        for therapist_id, count in mask_sales.items():
+            print(f"   淨膚師{therapist_id}: {count}組")
+        
         return mask_sales
 
     def calculate_person_count_bonus(self, person_count):
@@ -191,23 +196,36 @@ class AutoSalaryCalculator:
         
         return bonus
     
-    def calculate_charge_target_bonus(self, personal_performance, mask_count):
-        """計算充值目標達成獎"""
+    def calculate_charge_target_bonus(self, personal_performance, therapist_id, mask_sales):
+        """計算充值目標達成獎
+        條件：同時達成業績門檻 AND 水光面膜銷售7組以上
+        - 業績25萬 + 面膜7組 → 2000元
+        - 業績30萬 + 面膜7組 → 7000元（2000+5000）
+        - 面膜不到7組則無獎金
+        """
         bonus = 0
         
-        # 檢查業績達標
-        if personal_performance >= 250000:
-            bonus += 2000
-            if personal_performance >= 300000:
-                bonus += 5000
+        # 獲取該淨膚師的水光面膜銷售數量
+        mask_count = mask_sales.get(str(therapist_id), 0)
         
-        # 面膜銷售額外獎金（最高7組）
-        mask_bonus = min(mask_count, self.seasonal_bonus_rules['mask_sales_max']) * 1000
+        print(f"      淨膚師{therapist_id}: 業績{personal_performance:,.0f}元, 水光面膜{mask_count}組")
         
-        # 總獎金最高7000元
-        total_bonus = min(bonus + mask_bonus, 7000)
+        # 先檢查面膜銷售責任額（必須7組以上才能有獎金）
+        if mask_count < 7:
+            print(f"      ❌ 水光面膜未達責任額: {mask_count}/7組 → 無充值目標達成獎")
+            return 0
         
-        return total_bonus, bonus, mask_bonus
+        # 面膜達標後，檢查業績門檻
+        if personal_performance >= 300000:
+            bonus = 7000  # 30萬業績 + 7組面膜 = 7000元
+            print(f"      ✅ 業績30萬+面膜7組達標 → 充值目標達成獎: {bonus}元")
+        elif personal_performance >= 250000:
+            bonus = 2000  # 25萬業績 + 7組面膜 = 2000元  
+            print(f"      ✅ 業績25萬+面膜7組達標 → 充值目標達成獎: {bonus}元")
+        else:
+            print(f"      ❌ 業績未達25萬門檻: {personal_performance:,.0f}元 → 無充值目標達成獎")
+        
+        return bonus
 
     def preview_employee_data(self, df):
         """預覽員工數據"""
@@ -264,27 +282,42 @@ class AutoSalaryCalculator:
         return employees
 
     def calculate_seasonal_bonus(self, employees, mask_sales):
-        """計算季獎金 - 目前只計算人次激勵獎金"""
-        print("\n🎉 正在計算季獎金（人次激勵）...")
+        """計算季獎金 - 人次激勵獎金 + 充值目標達成獎"""
+        print("\n🎉 正在計算季獎金...")
         
         for employee in employees:
-            # 人次激勵獎金
+            # 1. 人次激勵獎金
             person_count_bonus = self.calculate_person_count_bonus(employee['person_count'])
+            
+            # 2. 充值目標達成獎（需要淨膚師編號）
+            # 根據員工行號推算淨膚師編號 (12->1, 13->2, 14->3, 15->4)
+            therapist_id = employee['row'] - 11
+            charge_target_bonus = self.calculate_charge_target_bonus(
+                employee['personal_performance'], 
+                therapist_id, 
+                mask_sales
+            )
             
             # 將季獎金資訊添加到員工資料
             employee['person_count_bonus'] = person_count_bonus
+            employee['charge_target_bonus'] = charge_target_bonus
+            employee['therapist_id'] = therapist_id
             
-            print(f"   {employee['name']}: 人次{employee['person_count']:.0f} → 人次激勵獎金{person_count_bonus:,}元")
+            print(f"\n   {employee['name']} (淨膚師{therapist_id}):")
+            print(f"      人次{employee['person_count']:.0f} → 人次激勵獎金{person_count_bonus:,}元")
             
-            # 顯示詳細計算過程
+            # 顯示人次激勵詳細計算過程
             if person_count_bonus > 0:
                 if employee['person_count'] > 132:
                     tier1_count = 132 - 111 + 1  # 111-132人
                     tier2_count = employee['person_count'] - 132  # 133以上
-                    print(f"      詳細: 111-132人({tier1_count}人×100元) + 133-{employee['person_count']:.0f}人({tier2_count}人×200元)")
+                    print(f"         詳細: 111-132人({tier1_count}人×100元) + 133-{employee['person_count']:.0f}人({tier2_count}人×200元)")
                 elif employee['person_count'] >= 110:
                     tier1_count = employee['person_count'] - 111 + 1  # 111到person_count
-                    print(f"      詳細: 111-{employee['person_count']:.0f}人({tier1_count:.0f}人×100元)")
+                    print(f"         詳細: 111-{employee['person_count']:.0f}人({tier1_count:.0f}人×100元)")
+            
+            # 顯示充值目標達成獎
+            print(f"      充值目標達成獎: {charge_target_bonus:,}元")
         
         return employees
 
@@ -335,9 +368,10 @@ class AutoSalaryCalculator:
             
             # 季獎金 - 只有正式淨膚師才有
             person_count_bonus = employee.get('person_count_bonus', 0) if is_formal_staff else 0
+            charge_target_bonus = employee.get('charge_target_bonus', 0) if is_formal_staff else 0
             
             # 計算總薪水
-            total_salary = base + meal + overtime + skill_bonus + team_bonus + person_count_bonus
+            total_salary = base + meal + overtime + skill_bonus + team_bonus + person_count_bonus + charge_target_bonus
             
             result = {
                 'name': employee['name'],
@@ -347,6 +381,7 @@ class AutoSalaryCalculator:
                 'skill_bonus': skill_bonus,
                 'team_bonus': team_bonus,
                 'person_count_bonus': person_count_bonus,
+                'charge_target_bonus': charge_target_bonus,
                 'total_salary': total_salary,
                 'is_formal_staff': is_formal_staff
             }
@@ -358,7 +393,7 @@ class AutoSalaryCalculator:
     def print_results(self, results, total_performance, total_consumption):
         """輸出結果"""
         print("\n" + "="*70)
-        print("🏆 淨膚寶薪水計算結果（含人次激勵獎金）")
+        print("🏆 淨膚寶薪水計算結果（含季獎金）")
         print("="*70)
         
         print(f"\n💰 當月業績總額: {total_performance:,.0f} 元")
@@ -383,6 +418,7 @@ class AutoSalaryCalculator:
             print(f"   手技獎金: {result['skill_bonus']:,.0f} 元")
             print(f"   團獎: {result['team_bonus']:,} 元")
             print(f"   人次激勵獎金: {result['person_count_bonus']:,} 元")
+            print(f"   充值目標達成獎: {result['charge_target_bonus']:,} 元")
             print("   ─────────────────────────────")
             print(f"   💰 總薪水: {result['total_salary']:,} 元")
             
@@ -410,9 +446,8 @@ def main():
         print("❌ 無法讀取Excel文件，程式結束")
         return
     
-    # 統計水光面膜銷售（暫時不使用）
-    # mask_sales = calculator.count_mask_sales(excel_file, date_sheets)
-    mask_sales = {}  # 空字典，後續擴充其他季獎金時使用
+    # 統計水光面膜銷售
+    mask_sales = calculator.count_mask_sales(excel_file, date_sheets)
     
     # 預覽員工數據
     calculator.preview_employee_data(df)
