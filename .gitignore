@@ -47,3 +47,11 @@ Thumbs.db
 *_backup.py
 *_new.py
 debug_*.py
+
+# 打包相關檔案
+release/
+portable_env/
+*.spec.bak
+build.log
+g17_analysis_result.txt
+output.log

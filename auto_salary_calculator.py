@@ -44,25 +44,22 @@ class AutoSalaryCalculator:
     
     def get_excel_file_path(self):
         """獲取Excel檔案路徑"""
-        print(f"預設Excel檔案路徑: {self.default_excel_path}")
+        print("📁 請選擇要計算的 Excel 檔案")
+        print("💡 提示：可以直接拖拉檔案到終端視窗，或手動輸入完整路徑")
+        print()
         
-        if self.default_excel_path.exists():
-            use_default = input("使用預設路徑嗎？ (y/n，直接按Enter使用預設): ").strip().lower()
-            if use_default in ['', 'y', 'yes']:
-                return str(self.default_excel_path)
-        else:
-            print("⚠️  預設檔案不存在")
-        
-        # 手動輸入路徑
+        # 直接要求手動輸入路徑
         while True:
-            excel_file = input("請輸入Excel檔案完整路徑: ").strip().strip('"')
+            excel_file = input("Excel檔案路徑: ").strip().strip('"')
             if excel_file.startswith('~'):
                 excel_file = str(Path(excel_file).expanduser())
             
             if os.path.exists(excel_file):
+                print(f"✅ 檔案確認: {excel_file}")
                 return excel_file
             else:
                 print(f"❌ 檔案不存在: {excel_file}")
+                print("   請檢查路徑是否正確")
                 retry = input("要重新輸入嗎？ (y/n): ").strip().lower()
                 if retry not in ['y', 'yes']:
                     return None
@@ -246,25 +243,41 @@ class AutoSalaryCalculator:
         
         return bonus, reason
     
-    def calculate_dual_target_bonus(self, personal_consumption, personal_performance):
+    def calculate_dual_target_bonus(self, personal_consumption, personal_performance, mask_sales, therapist_id, total_consumption):
         """計算消耗充值雙達標獎
-        消耗額18萬 + 個人業績額25萬 → 2000元
+        必須同時達成以下兩個條件：
+        1. 充值目標達成獎：業績25萬+ AND 面膜7組+
+        2. 個人消耗獎勵：消耗18萬+
+        同時達成才能獲得2000元雙達標獎
         """
         bonus = 0
         reason = ""
         
-        consumption_ok = personal_consumption >= 180000
-        performance_ok = personal_performance >= 250000
+        # 檢查充值目標達成獎條件
+        mask_count = mask_sales.get(str(therapist_id), 0)
+        charge_bonus, charge_reason = self.calculate_charge_target_bonus(personal_performance, therapist_id, mask_sales)
         
-        if consumption_ok and performance_ok:
+        # 檢查個人消耗獎勵條件
+        consumption_bonus, consumption_reason = self.calculate_consumption_bonus(personal_consumption, total_consumption)
+        
+        # 只有兩個條件都達成才能獲得雙達標獎
+        charge_qualified = charge_bonus > 0  # 充值目標達成獎有獎金
+        consumption_qualified = consumption_bonus > 0  # 個人消耗獎勵有獎金
+        
+        if charge_qualified and consumption_qualified:
             bonus = 2000
-            reason = "消耗18萬+業績25萬雙達標"
+            reason = "充值目標+個人消耗雙達標"
         else:
             missing = []
-            if not consumption_ok:
-                missing.append(f"消耗{personal_consumption:,.0f}/180,000")
-            if not performance_ok:
-                missing.append(f"業績{personal_performance:,.0f}/250,000")
+            if not charge_qualified:
+                if mask_count < 7:
+                    missing.append(f"面膜未達7組({mask_count}組)")
+                elif personal_performance < 250000:
+                    missing.append(f"業績未達25萬({personal_performance:,.0f}元)")
+                else:
+                    missing.append("充值目標未達成")
+            if not consumption_qualified:
+                missing.append(f"消耗未達18萬({personal_consumption:,.0f}元)")
             reason = f"未達雙標準: {', '.join(missing)}"
         
         return bonus, reason
@@ -378,7 +391,10 @@ class AutoSalaryCalculator:
             # 4. 消耗充值雙達標獎
             dual_target_bonus, dual_reason = self.calculate_dual_target_bonus(
                 employee['personal_consumption'], 
-                employee['personal_performance']
+                employee['personal_performance'],
+                mask_sales,
+                therapist_id,
+                total_consumption
             )
             
             # 5. 進階課程工獎
