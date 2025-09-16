@@ -223,21 +223,21 @@ class AutoSalaryCalculator:
     
     def calculate_consumption_bonus(self, personal_consumption, total_consumption):
         """計算個人消耗獎勵季獎金
-        消耗達18萬：可抽消耗總額的1.5%
-        消耗達20萬：可抽消耗總額的2.5%
+        消耗達18萬：可抽個人消耗的1.5%
+        消耗達20萬：可抽個人消耗的2.5%
         * KOL不計算消耗
         """
         bonus = 0
         reason = ""
         
         if personal_consumption >= 200000:
-            # 20萬消耗：2.5%
-            bonus = int(total_consumption * 0.025)
-            reason = f"消耗20萬達標，可抽總消耗{total_consumption:,.0f}元的2.5%"
+            # 20萬消耗：個人消耗的2.5%
+            bonus = int(personal_consumption * 0.025)
+            reason = f"消耗20萬達標，可抽個人消耗{personal_consumption:,.0f}元的2.5%"
         elif personal_consumption >= 180000:
-            # 18萬消耗：1.5%
-            bonus = int(total_consumption * 0.015)
-            reason = f"消耗18萬達標，可抽總消耗{total_consumption:,.0f}元的1.5%"
+            # 18萬消耗：個人消耗的1.5%
+            bonus = int(personal_consumption * 0.015)
+            reason = f"消耗18萬達標，可抽個人消耗{personal_consumption:,.0f}元的1.5%"
         else:
             reason = f"消耗未達18萬門檻: {personal_consumption:,.0f}元"
         
@@ -296,10 +296,10 @@ class AutoSalaryCalculator:
     
     def preview_employee_data(self, df):
         """預覽員工數據"""
-        print("\n👥 員工數據預覽 (A12-A17):")
+        print("\n👥 員工數據預覽 (A14-A17):")
         print("-" * 70)
         
-        for i, row in enumerate([12, 13, 14, 15, 16, 17], 1):
+        for i, row in enumerate([14, 15, 16, 17], 1):
             try:
                 name = df.iloc[row-1, 0]  # A行
                 personal_performance = df.iloc[row-1, 1]  # B行
@@ -807,18 +807,18 @@ def main():
     # 選擇員工數據讀取方式
     print("\n📋 員工數據讀取方式:")
     print("1. 自動檢測（根據B行數值判斷）")
-    print("2. 手動指定範圍（例如A12到A17）")
+    print("2. 手動指定範圍（例如A14到A17）")
     
     detection_choice = input("請選擇 (1/2，直接按Enter使用自動檢測): ").strip()
     
     if detection_choice == "2":
         # 手動指定範圍
         try:
-            start_row = int(input("起始行號 (預設12): ") or "12")
+            start_row = int(input("起始行號 (預設14): ") or "12")
             end_row = int(input("結束行號 (預設17): ") or "17")
             employee_rows = calculator.get_manual_employee_rows(start_row, end_row)
         except ValueError:
-            print("❌ 輸入錯誤，使用預設範圍 A12-A17")
+            print("❌ 輸入錯誤，使用預設範圍 A14-A17")
             employee_rows = calculator.get_manual_employee_rows(12, 17)
     else:
         # 自動檢測（預設）
