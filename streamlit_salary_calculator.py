@@ -49,26 +49,33 @@ def upload_excel_file():
                 progress_container = st.container()
                 
                 with progress_container:
-                    # 進度條
+                    # 進度條和狀態文字
                     progress_bar = st.progress(0)
                     status_text = st.empty()
+                    percentage_text = st.empty()
                     
                     # 步驟 1: 儲存檔案
+                    current_progress = 10
                     status_text.text("📁 正在儲存上傳的檔案...")
-                    progress_bar.progress(10)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     
                     temp_file_path = f"temp_{uploaded_file.name}"
                     with open(temp_file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     
                     # 步驟 2: 初始化計算器
+                    current_progress = 20
                     status_text.text("🔧 正在初始化計算器...")
-                    progress_bar.progress(20)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     calculator = StreamlitSalaryCalculator()
                     
                     # 步驟 3: 讀取主要 Excel 數據
+                    current_progress = 30
                     status_text.text("📖 正在讀取 Excel 主要數據...")
-                    progress_bar.progress(30)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     df, total_performance, total_consumption, date_sheets = calculator.read_excel_data(temp_file_path)
                     
                     if df is None:
@@ -77,17 +84,23 @@ def upload_excel_file():
                         return False
                     
                     # 步驟 4: 分析工作表結構
+                    current_progress = 50
                     status_text.text(f"🗓️ 正在分析 {len(date_sheets)} 個日期工作表...")
-                    progress_bar.progress(50)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     
                     # 步驟 5: 統計面膜銷售（這是比較耗時的部分）
+                    current_progress = 70
                     status_text.text("🎭 正在統計水光面膜銷售數據...")
-                    progress_bar.progress(70)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     mask_sales = calculator.count_mask_sales(temp_file_path, date_sheets)
                     
                     # 步驟 6: 數據驗證
+                    current_progress = 85
                     status_text.text("✅ 正在驗證數據完整性...")
-                    progress_bar.progress(85)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     
                     # 儲存數據到 session state
                     st.session_state.excel_data = {
@@ -100,19 +113,23 @@ def upload_excel_file():
                     }
                     
                     # 步驟 7: 清理臨時檔案
+                    current_progress = 95
                     status_text.text("🧹 正在清理臨時檔案...")
-                    progress_bar.progress(95)
+                    percentage_text.text(f"進度: {current_progress}%")
+                    progress_bar.progress(current_progress / 100)
                     
                     if os.path.exists(temp_file_path):
                         os.remove(temp_file_path)
                     
                     # 完成
+                    current_progress = 100
                     status_text.text("🎉 檔案處理完成！")
-                    progress_bar.progress(100)
+                    percentage_text.text(f"進度: {current_progress}% - 完成！")
+                    progress_bar.progress(current_progress / 100)
                     
                     # 短暫顯示完成狀態後清除進度
                     import time
-                    time.sleep(0.5)
+                    time.sleep(1.0)  # 延長顯示時間讓用戶看到100%
                     progress_container.empty()
 
                 st.success("✅ Excel 檔案讀取成功！")
@@ -261,20 +278,25 @@ def calculate_salary():
         calc_progress_container = st.container()
         
         with calc_progress_container:
-            # 計算進度條
+            # 計算進度條和百分比
             calc_progress = st.progress(0)
             calc_status = st.empty()
+            calc_percentage = st.empty()
             
             try:
                 # 步驟 1: 初始化
+                current_progress = 10
                 calc_status.text("🔧 正在初始化計算器...")
-                calc_progress.progress(10)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 calculator = StreamlitSalaryCalculator()
                 excel_data = st.session_state.excel_data
                 
                 # 步驟 2: 獲取員工數據
+                current_progress = 25
                 calc_status.text("👥 正在獲取員工數據...")
-                calc_progress.progress(25)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 employees = calculator.get_employee_data(excel_data['df'], employee_rows)
 
                 if not employees:
@@ -283,8 +305,10 @@ def calculate_salary():
                     return
                 
                 # 步驟 3: 計算季獎金
+                current_progress = 50
                 calc_status.text("🎊 正在計算季獎金...")
-                calc_progress.progress(50)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 employees = calculator.calculate_seasonal_bonus(
                     employees,
                     excel_data['mask_sales'],
@@ -292,8 +316,10 @@ def calculate_salary():
                 )
 
                 # 步驟 4: 計算團獎
+                current_progress = 70
                 calc_status.text("🏆 正在計算團獎...")
-                calc_progress.progress(70)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 team_bonus_per_person = calculator.calculate_team_bonus(
                     num_formal_staff,
                     excel_data['total_performance'],
@@ -301,8 +327,10 @@ def calculate_salary():
                 )
 
                 # 步驟 5: 計算最終薪資
+                current_progress = 85
                 calc_status.text("💰 正在計算最終薪資...")
-                calc_progress.progress(85)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 results = calculator.calculate_salary(
                     employees,
                     team_bonus_per_person,
@@ -310,8 +338,10 @@ def calculate_salary():
                 )
 
                 # 步驟 6: 儲存結果
+                current_progress = 95
                 calc_status.text("💾 正在儲存計算結果...")
-                calc_progress.progress(95)
+                calc_percentage.text(f"計算進度: {current_progress}%")
+                calc_progress.progress(current_progress / 100)
                 st.session_state.calculation_results = {
                     'results': results,
                     'total_performance': excel_data['total_performance'],
@@ -320,12 +350,14 @@ def calculate_salary():
                 }
                 
                 # 完成
+                current_progress = 100
                 calc_status.text("🎉 薪資計算完成！")
-                calc_progress.progress(100)
+                calc_percentage.text(f"計算進度: {current_progress}% - 完成！")
+                calc_progress.progress(current_progress / 100)
                 
                 # 短暫顯示完成狀態後清除進度
                 import time
-                time.sleep(0.5)
+                time.sleep(1.0)
                 calc_progress_container.empty()
 
                 st.success("🎉 薪資計算完成！")
@@ -511,14 +543,17 @@ def create_download_report(results, total_performance, total_consumption):
         report_progress_container = st.container()
         
         with report_progress_container:
-            # 報表生成進度條
+            # 報表生成進度條和百分比
             report_progress = st.progress(0)
             report_status = st.empty()
+            report_percentage = st.empty()
             
             try:
                 # 步驟 1: 準備數據
+                current_progress = 20
                 report_status.text("📊 正在準備報表數據...")
-                report_progress.progress(20)
+                report_percentage.text(f"報表進度: {current_progress}%")
+                report_progress.progress(current_progress / 100)
                 
                 # 建立 Excel 報表
                 output = io.BytesIO()
@@ -558,20 +593,26 @@ def create_download_report(results, total_performance, total_consumption):
                     })
 
                 # 步驟 2: 建立 DataFrame
+                current_progress = 50
                 report_status.text("📋 正在建立薪資明細表...")
-                report_progress.progress(50)
+                report_percentage.text(f"報表進度: {current_progress}%")
+                report_progress.progress(current_progress / 100)
                 report_df = pd.DataFrame(report_data)
 
                 # 步驟 3: 寫入 Excel
+                current_progress = 70
                 report_status.text("📝 正在寫入 Excel 檔案...")
-                report_progress.progress(70)
+                report_percentage.text(f"報表進度: {current_progress}%")
+                report_progress.progress(current_progress / 100)
                 
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     report_df.to_excel(writer, sheet_name='薪資明細', index=False)
 
                     # 建立總覽表
+                    current_progress = 85
                     report_status.text("📊 正在建立總覽表...")
-                    report_progress.progress(85)
+                    report_percentage.text(f"報表進度: {current_progress}%")
+                    report_progress.progress(current_progress / 100)
                     
                     summary_data = {
                         '項目': ['業績總額', '消耗總額', '消耗比例', '基本薪資總計', '季獎金總計', '全店薪資總額'],
@@ -588,12 +629,14 @@ def create_download_report(results, total_performance, total_consumption):
                     summary_df.to_excel(writer, sheet_name='總覽', index=False)
 
                 # 步驟 4: 完成
+                current_progress = 100
                 report_status.text("✅ 報表生成完成！")
-                report_progress.progress(100)
+                report_percentage.text(f"報表進度: {current_progress}% - 完成！")
+                report_progress.progress(current_progress / 100)
                 
                 # 短暫顯示完成狀態後清除進度
                 import time
-                time.sleep(0.5)
+                time.sleep(1.0)
                 report_progress_container.empty()
                 
                 # 顯示下載按鈕
