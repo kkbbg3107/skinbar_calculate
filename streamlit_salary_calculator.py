@@ -45,25 +45,50 @@ def upload_excel_file():
         # 如果還沒處理過這個檔案，就處理它
         if st.session_state.excel_data is None:
             try:
-                with st.spinner("正在讀取 Excel 檔案..."):
-                    # 儲存臨時檔案
+                # 建立進度容器
+                progress_container = st.container()
+                
+                with progress_container:
+                    # 進度條
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    # 步驟 1: 儲存檔案
+                    status_text.text("📁 正在儲存上傳的檔案...")
+                    progress_bar.progress(10)
+                    
                     temp_file_path = f"temp_{uploaded_file.name}"
                     with open(temp_file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
-
-                    # 創建計算器實例並讀取數據
+                    
+                    # 步驟 2: 初始化計算器
+                    status_text.text("🔧 正在初始化計算器...")
+                    progress_bar.progress(20)
                     calculator = StreamlitSalaryCalculator()
-
-                    # 讀取 Excel 數據
+                    
+                    # 步驟 3: 讀取主要 Excel 數據
+                    status_text.text("📖 正在讀取 Excel 主要數據...")
+                    progress_bar.progress(30)
                     df, total_performance, total_consumption, date_sheets = calculator.read_excel_data(temp_file_path)
-
+                    
                     if df is None:
+                        progress_container.empty()
                         st.error("❌ 無法讀取 Excel 檔案，請檢查檔案格式")
                         return False
-
-                    # 計算水光面膜銷售
+                    
+                    # 步驟 4: 分析工作表結構
+                    status_text.text(f"🗓️ 正在分析 {len(date_sheets)} 個日期工作表...")
+                    progress_bar.progress(50)
+                    
+                    # 步驟 5: 統計面膜銷售（這是比較耗時的部分）
+                    status_text.text("🎭 正在統計水光面膜銷售數據...")
+                    progress_bar.progress(70)
                     mask_sales = calculator.count_mask_sales(temp_file_path, date_sheets)
-
+                    
+                    # 步驟 6: 數據驗證
+                    status_text.text("✅ 正在驗證數據完整性...")
+                    progress_bar.progress(85)
+                    
                     # 儲存數據到 session state
                     st.session_state.excel_data = {
                         'df': df,
@@ -73,10 +98,22 @@ def upload_excel_file():
                         'mask_sales': mask_sales,
                         'temp_file_path': temp_file_path
                     }
-
-                    # 清理臨時檔案
+                    
+                    # 步驟 7: 清理臨時檔案
+                    status_text.text("🧹 正在清理臨時檔案...")
+                    progress_bar.progress(95)
+                    
                     if os.path.exists(temp_file_path):
                         os.remove(temp_file_path)
+                    
+                    # 完成
+                    status_text.text("🎉 檔案處理完成！")
+                    progress_bar.progress(100)
+                    
+                    # 短暫顯示完成狀態後清除進度
+                    import time
+                    time.sleep(0.5)
+                    progress_container.empty()
 
                 st.success("✅ Excel 檔案讀取成功！")
 
@@ -220,50 +257,81 @@ def calculate_salary():
 
     # 計算按鈕
     if st.button("🎯 開始計算薪資", type="primary", use_container_width=True):
-        with st.spinner("正在計算薪資..."):
+        # 建立計算進度容器
+        calc_progress_container = st.container()
+        
+        with calc_progress_container:
+            # 計算進度條
+            calc_progress = st.progress(0)
+            calc_status = st.empty()
+            
             try:
+                # 步驟 1: 初始化
+                calc_status.text("🔧 正在初始化計算器...")
+                calc_progress.progress(10)
                 calculator = StreamlitSalaryCalculator()
                 excel_data = st.session_state.excel_data
-
-                # 獲取員工數據
+                
+                # 步驟 2: 獲取員工數據
+                calc_status.text("👥 正在獲取員工數據...")
+                calc_progress.progress(25)
                 employees = calculator.get_employee_data(excel_data['df'], employee_rows)
 
                 if not employees:
+                    calc_progress_container.empty()
                     st.error("❌ 無法獲取員工數據")
                     return
-
-                # 計算季獎金
+                
+                # 步驟 3: 計算季獎金
+                calc_status.text("🎊 正在計算季獎金...")
+                calc_progress.progress(50)
                 employees = calculator.calculate_seasonal_bonus(
                     employees,
                     excel_data['mask_sales'],
                     excel_data['total_consumption']
                 )
 
-                # 計算團獎
+                # 步驟 4: 計算團獎
+                calc_status.text("🏆 正在計算團獎...")
+                calc_progress.progress(70)
                 team_bonus_per_person = calculator.calculate_team_bonus(
                     num_formal_staff,
                     excel_data['total_performance'],
                     excel_data['total_consumption']
                 )
 
-                # 計算薪資
+                # 步驟 5: 計算最終薪資
+                calc_status.text("💰 正在計算最終薪資...")
+                calc_progress.progress(85)
                 results = calculator.calculate_salary(
                     employees,
                     team_bonus_per_person,
                     formal_staff_positions
                 )
 
-                # 儲存結果
+                # 步驟 6: 儲存結果
+                calc_status.text("💾 正在儲存計算結果...")
+                calc_progress.progress(95)
                 st.session_state.calculation_results = {
                     'results': results,
                     'total_performance': excel_data['total_performance'],
                     'total_consumption': excel_data['total_consumption'],
                     'team_bonus_per_person': team_bonus_per_person
                 }
+                
+                # 完成
+                calc_status.text("🎉 薪資計算完成！")
+                calc_progress.progress(100)
+                
+                # 短暫顯示完成狀態後清除進度
+                import time
+                time.sleep(0.5)
+                calc_progress_container.empty()
 
                 st.success("🎉 薪資計算完成！")
 
             except Exception as e:
+                calc_progress_container.empty()
                 st.error(f"❌ 計算過程中發生錯誤: {e}")
 
 def display_results():
@@ -437,71 +505,132 @@ def create_download_report(results, total_performance, total_consumption):
     """建立下載報表"""
     st.subheader("📄 下載報表")
 
-    # 建立 Excel 報表
-    output = io.BytesIO()
+    # 下載報表按鈕
+    if st.button("📥 生成 Excel 報表", use_container_width=True):
+        # 建立報表生成進度容器
+        report_progress_container = st.container()
+        
+        with report_progress_container:
+            # 報表生成進度條
+            report_progress = st.progress(0)
+            report_status = st.empty()
+            
+            try:
+                # 步驟 1: 準備數據
+                report_status.text("📊 正在準備報表數據...")
+                report_progress.progress(20)
+                
+                # 建立 Excel 報表
+                output = io.BytesIO()
 
-    # 建立詳細資料
-    report_data = []
-    for result in results:
-        basic_salary = (
-            result['base_salary'] + result['meal_allowance'] +
-            result['overtime_pay'] + result['skill_bonus'] + result['team_bonus']
-        )
-        seasonal_bonus_total = (
-            result['person_count_bonus'] + result['charge_target_bonus'] +
-            result['consumption_bonus'] + result['dual_target_bonus'] +
-            result['advanced_course_bonus'] + result['product_sales_bonus'] +
-            result['new_customer_rate_bonus']
-        )
+                # 建立詳細資料
+                report_data = []
+                for result in results:
+                    basic_salary = (
+                        result['base_salary'] + result['meal_allowance'] +
+                        result['overtime_pay'] + result['skill_bonus'] + result['team_bonus']
+                    )
+                    seasonal_bonus_total = (
+                        result['person_count_bonus'] + result['charge_target_bonus'] +
+                        result['consumption_bonus'] + result['dual_target_bonus'] +
+                        result['advanced_course_bonus'] + result['product_sales_bonus'] +
+                        result['new_customer_rate_bonus']
+                    )
 
-        report_data.append({
-            '員工姓名': result['name'],
-            '身份': '正式淨膚師' if result['is_formal_staff'] else '一般員工',
-            '底薪': result['base_salary'],
-            '伙食費': result['meal_allowance'],
-            '加班費': result['overtime_pay'],
-            '手技獎金': result['skill_bonus'],
-            '團獎': result['team_bonus'],
-            '基本薪資小計': basic_salary,
-            '人次激勵獎金': result['person_count_bonus'],
-            '充值目標達成獎': result['charge_target_bonus'],
-            '個人消耗獎勵': result['consumption_bonus'],
-            '消耗充值雙達標獎': result['dual_target_bonus'],
-            '進階課程工獎': result['advanced_course_bonus'],
-            '產品銷售供獎': result['product_sales_bonus'],
-            '新客成交率70%獎金': result['new_customer_rate_bonus'],
-            '季獎金小計': seasonal_bonus_total,
-            '總薪資': result['total_salary']
-        })
+                    report_data.append({
+                        '員工姓名': result['name'],
+                        '身份': '正式淨膚師' if result['is_formal_staff'] else '一般員工',
+                        '底薪': result['base_salary'],
+                        '伙食費': result['meal_allowance'],
+                        '加班費': result['overtime_pay'],
+                        '手技獎金': result['skill_bonus'],
+                        '團獎': result['team_bonus'],
+                        '基本薪資小計': basic_salary,
+                        '人次激勵獎金': result['person_count_bonus'],
+                        '充值目標達成獎': result['charge_target_bonus'],
+                        '個人消耗獎勵': result['consumption_bonus'],
+                        '消耗充值雙達標獎': result['dual_target_bonus'],
+                        '進階課程工獎': result['advanced_course_bonus'],
+                        '產品銷售供獎': result['product_sales_bonus'],
+                        '新客成交率70%獎金': result['new_customer_rate_bonus'],
+                        '季獎金小計': seasonal_bonus_total,
+                        '總薪資': result['total_salary']
+                    })
 
-    # 建立 DataFrame 並寫入 Excel
-    report_df = pd.DataFrame(report_data)
+                # 步驟 2: 建立 DataFrame
+                report_status.text("📋 正在建立薪資明細表...")
+                report_progress.progress(50)
+                report_df = pd.DataFrame(report_data)
 
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        report_df.to_excel(writer, sheet_name='薪資明細', index=False)
+                # 步驟 3: 寫入 Excel
+                report_status.text("📝 正在寫入 Excel 檔案...")
+                report_progress.progress(70)
+                
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    report_df.to_excel(writer, sheet_name='薪資明細', index=False)
 
-        # 建立總覽表
-        summary_data = {
-            '項目': ['業績總額', '消耗總額', '消耗比例', '基本薪資總計', '季獎金總計', '全店薪資總額'],
-            '金額/比例': [
-                f"{total_performance:,.0f} 元",
-                f"{total_consumption:,.0f} 元",
-                f"{(total_consumption/total_performance)*100:.1f}%" if total_performance > 0 else "0%",
-                f"{sum([r['base_salary']+r['meal_allowance']+r['overtime_pay']+r['skill_bonus']+r['team_bonus'] for r in results]):,.0f} 元",
-                f"{sum([r['person_count_bonus']+r['charge_target_bonus']+r['consumption_bonus']+r['dual_target_bonus']+r['advanced_course_bonus']+r['product_sales_bonus']+r['new_customer_rate_bonus'] for r in results]):,.0f} 元",
-                f"{sum([r['total_salary'] for r in results]):,.0f} 元"
-            ]
-        }
-        summary_df = pd.DataFrame(summary_data)
-        summary_df.to_excel(writer, sheet_name='總覽', index=False)
+                    # 建立總覽表
+                    report_status.text("📊 正在建立總覽表...")
+                    report_progress.progress(85)
+                    
+                    summary_data = {
+                        '項目': ['業績總額', '消耗總額', '消耗比例', '基本薪資總計', '季獎金總計', '全店薪資總額'],
+                        '金額/比例': [
+                            f"{total_performance:,.0f} 元",
+                            f"{total_consumption:,.0f} 元",
+                            f"{(total_consumption/total_performance)*100:.1f}%" if total_performance > 0 else "0%",
+                            f"{sum([r['base_salary']+r['meal_allowance']+r['overtime_pay']+r['skill_bonus']+r['team_bonus'] for r in results]):,.0f} 元",
+                            f"{sum([r['person_count_bonus']+r['charge_target_bonus']+r['consumption_bonus']+r['dual_target_bonus']+r['advanced_course_bonus']+r['product_sales_bonus']+r['new_customer_rate_bonus'] for r in results]):,.0f} 元",
+                            f"{sum([r['total_salary'] for r in results]):,.0f} 元"
+                        ]
+                    }
+                    summary_df = pd.DataFrame(summary_data)
+                    summary_df.to_excel(writer, sheet_name='總覽', index=False)
 
-    # 下載按鈕
-    st.download_button(
-        label="📥 下載 Excel 薪資報表",
-        data=output.getvalue(),
-        file_name=f"淨膚寶薪資計算報表_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+                # 步驟 4: 完成
+                report_status.text("✅ 報表生成完成！")
+                report_progress.progress(100)
+                
+                # 短暫顯示完成狀態後清除進度
+                import time
+                time.sleep(0.5)
+                report_progress_container.empty()
+                
+                # 顯示下載按鈕
+                st.download_button(
+                    label="📥 下載 Excel 薪資報表",
+                    data=output.getvalue(),
+                    file_name=f"淨膚寶薪資計算報表_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+                
+            except Exception as e:
+                report_progress_container.empty()
+                st.error(f"❌ 生成報表時發生錯誤: {e}")
+    
+    # 如果已經有計算結果，也可以直接顯示簡單的下載按鈕
+    else:
+        with st.expander("📋 快速下載（點擊展開）"):
+            st.info("💡 點擊上方的「生成 Excel 報表」按鈕來建立完整的報表檔案")
+            
+            # 提供一個簡化的即時下載選項
+            output = io.BytesIO()
+            quick_df = pd.DataFrame([{
+                '員工': r['name'],
+                '總薪資': r['total_salary'],
+                '身份': '正式淨膚師' if r['is_formal_staff'] else '一般員工'
+            } for r in results])
+            
+            quick_df.to_excel(output, index=False, engine='openpyxl')
+            
+            st.download_button(
+                label="⚡ 快速下載簡化版",
+                data=output.getvalue(),
+                file_name=f"薪資簡表_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="僅包含員工姓名、總薪資和身份的簡化版本"
+            )
 
 def main():
     """主程式"""
@@ -519,14 +648,68 @@ def main():
     # 側邊欄
     with st.sidebar:
         st.title("🏢 操作指南")
-        st.write("1. 📁 上傳 Excel 檔案")
-        st.write("2. 👥 確認員工數據")
-        st.write("3. ⚙️ 設定正式淨膚師")
-        st.write("4. 🚀 執行計算")
-
-        if st.button("🔄 重新開始"):
+        
+        # 進度追蹤
+        st.markdown("### 📋 進度追蹤")
+        
+        # 檢查各步驟完成狀態
+        excel_uploaded = st.session_state.get('excel_data') is not None
+        calculation_done = st.session_state.get('calculation_results') is not None
+        
+        # 步驟狀態顯示
+        step1_icon = "✅" if excel_uploaded else "📁"
+        step2_icon = "✅" if excel_uploaded else "⏳"
+        step3_icon = "✅" if calculation_done else "⏳" if excel_uploaded else "⏸️"
+        step4_icon = "✅" if calculation_done else "⏳" if calculation_done else "⏸️"
+        
+        st.write(f"{step1_icon} 1. 上傳 Excel 檔案")
+        st.write(f"{step2_icon} 2. 確認員工數據")
+        st.write(f"{step3_icon} 3. 設定正式淨膚師")
+        st.write(f"{step4_icon} 4. 執行計算")
+        
+        # 整體進度
+        if calculation_done:
+            st.progress(1.0)
+            st.success("🎉 全部完成！")
+        elif excel_uploaded:
+            st.progress(0.5)
+            st.info("📊 資料已載入，請繼續設定")
+        else:
+            st.progress(0.0)
+            st.info("🔄 等待上傳檔案")
+        
+        st.markdown("---")
+        
+        # 檔案資訊
+        if excel_uploaded:
+            st.markdown("### 📊 檔案資訊")
+            data = st.session_state.excel_data
+            st.write(f"💰 業績: {data['total_performance']:,.0f} 元")
+            st.write(f"🛍️ 消耗: {data['total_consumption']:,.0f} 元")
+            st.write(f"📅 工作表: {len(data['date_sheets'])} 個")
+            
+            if data['mask_sales']:
+                st.write("🎭 面膜銷售:")
+                for therapist, count in data['mask_sales'].items():
+                    st.write(f"   淨膚師{therapist}: {count}組")
+        
+        st.markdown("---")
+        
+        # 控制按鈕
+        if st.button("🔄 重新開始", use_container_width=True):
             st.session_state.clear()
             st.rerun()
+            
+        if excel_uploaded and not calculation_done:
+            if st.button("⚡ 快速計算", use_container_width=True, help="使用預設設定快速計算"):
+                st.info("💡 請先在主頁面設定正式淨膚師人數後再計算")
+        
+        # 系統資訊
+        st.markdown("---")
+        st.markdown("### ℹ️ 系統資訊")
+        st.caption("🐍 Python 3.13.2")
+        st.caption("📊 Streamlit Web App")
+        st.caption("🔧 基於 auto_salary_calculator.py")
 
     # 主要流程
     if upload_excel_file():
