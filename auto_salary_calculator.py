@@ -704,50 +704,81 @@ class AutoSalaryCalculator:
             print(f"❌ 讀取Excel文件時發生錯誤: {e}")
             raise
 
-    def get_dynamic_employee_rows(self, df, start_row=12):
-        """動態獲取員工行號，從指定行開始，直到B行為0為止"""
+    def get_dynamic_employee_rows(self, df, start_row=14):
+        """動態獲取員工行號，從指定行開始，連續遇到多個空行才停止
+
+        改進的邏輯：
+        - 跳過表頭行（B行為文字）
+        - 連續遇到2個B行為0的行才停止（更容錯）
+        - 只收集姓名不為純數字的員工行
+        """
         employee_rows = []
         row = start_row
-        
+        consecutive_zeros = 0  # 連續遇到0的次數
+
         print(f"🔍 動態搜尋員工數據（從第{start_row}行開始）...")
-        
+
         # 增加最大搜尋範圍，避免無限循環
-        max_row = min(df.shape[0], start_row + 15)  # 最多搜尋15行
-        
+        max_row = min(df.shape[0], start_row + 20)  # 最多搜尋20行
+
         while row <= max_row:
             try:
                 # 檢查B行的值（個人業績）
                 b_value = df.iloc[row-1, 1] if df.shape[1] > 1 else None
-                
+
                 # 檢查A行是否有員工姓名
                 a_value = df.iloc[row-1, 0] if df.shape[0] >= row else None
-                
+
                 print(f"   第{row}行檢查: A='{a_value}' B='{b_value}'")
-                
-                # 如果B行為0、空值，停止搜尋
-                if pd.isna(b_value) or b_value == 0:
-                    print(f"   第{row}行 B列為 {b_value}，停止搜尋")
-                    break
-                
-                # 如果A行有員工姓名且B行有數值
-                if pd.notna(a_value) and str(a_value).strip():
-                    employee_rows.append(row)
-                    print(f"   ✅ 第{row}行: {a_value} (業績: {b_value:,.0f})")
+
+                # 檢查B行是否為數字
+                try:
+                    b_numeric = float(b_value) if pd.notna(b_value) else 0
+                except (ValueError, TypeError):
+                    # B行為文字（可能是表頭），跳過這行
+                    print(f"   第{row}行 B列為文字 '{b_value}'，跳過")
+                    row += 1
+                    continue
+
+                # 如果B行為0，增加計數器
+                if b_numeric == 0:
+                    consecutive_zeros += 1
+                    print(f"   第{row}行 B列為 0（連續 {consecutive_zeros} 次）")
+
+                    # 連續2個0才停止搜尋
+                    if consecutive_zeros >= 2:
+                        print(f"   連續遇到 {consecutive_zeros} 個 0，停止搜尋")
+                        break
                 else:
-                    # A行無姓名但B行有值，可能是格式問題，繼續搜尋但不加入清單
-                    print(f"   ⚠️  第{row}行: A列無姓名但B列有值 {b_value}，跳過但繼續搜尋")
-                
+                    # 重置計數器
+                    consecutive_zeros = 0
+
+                # 檢查A行是否有有效的員工姓名
+                if pd.notna(a_value) and str(a_value).strip():
+                    a_str = str(a_value).strip()
+
+                    # 排除純數字的姓名（如「4」「5」「6」）
+                    if a_str.isdigit():
+                        print(f"   ⚠️  第{row}行: 姓名為純數字 '{a_str}'，跳過")
+                    elif b_numeric > 0:
+                        # 有效的員工：姓名不為空、不為純數字、業績>0
+                        employee_rows.append(row)
+                        print(f"   ✅ 第{row}行: {a_value} (業績: {b_numeric:,.0f})")
+                    else:
+                        print(f"   第{row}行: {a_value} (業績為0，記錄但可能非正式員工)")
+
                 row += 1
-                
+
             except IndexError:
                 # 超出資料範圍
                 print(f"   第{row}行超出資料範圍，停止搜尋")
                 break
             except Exception as e:
                 print(f"   ❌ 第{row}行讀取錯誤: {e}")
-                break
-        
-        print(f"🎯 找到 {len(employee_rows)} 位淨膚師: 行號 {employee_rows}")
+                row += 1
+                continue
+
+        print(f"🎯 找到 {len(employee_rows)} 位員工: 行號 {employee_rows}")
         return employee_rows
 
     def get_manual_employee_rows(self, start_row=12, end_row=17):

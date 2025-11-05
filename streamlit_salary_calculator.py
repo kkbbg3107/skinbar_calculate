@@ -32,7 +32,7 @@ def upload_excel_file():
     uploaded_file = st.file_uploader(
         "選擇淨膚寶月報表 Excel 檔案",
         type=['xlsx', 'xls'],
-        help="請上傳包含「月報表彙整」工作表的 Excel 檔案"
+        help="請上傳包含「美容師1-2月」工作表的 Excel 檔案"
     )
 
     if uploaded_file is not None:
@@ -179,8 +179,8 @@ def get_employee_preview():
     df = st.session_state.excel_data['df']
     calculator = StreamlitSalaryCalculator()
 
-    # 獲取動態員工行號
-    employee_rows = calculator.get_dynamic_employee_rows(df, start_row=12)
+    # 獲取動態員工行號（從第14行開始，跳過合計行和表頭）
+    employee_rows = calculator.get_dynamic_employee_rows(df, start_row=14)
 
     st.write(f"🔍 自動檢測到 {len(employee_rows)} 位員工（行號: {employee_rows}）")
 
