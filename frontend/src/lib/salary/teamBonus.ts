@@ -46,9 +46,23 @@ export function calcTeamBonus(
     };
   }
 
+  // 超標判斷：若業績達到更高級距的門檻，給予對應獎金
+  const allTiers = Object.values(TEAM_BONUS_RULES).sort((a, b) => a.minPerf - b.minPerf);
+  let appliedBonus = rule.bonus;
+  let appliedMinPerf = rule.minPerf;
+  for (const tier of allTiers) {
+    if (tier.minPerf > rule.minPerf && totalPerf >= tier.minPerf) {
+      appliedBonus = tier.bonus;
+      appliedMinPerf = tier.minPerf;
+    }
+  }
+
+  const overachieved = appliedBonus > rule.bonus;
   return {
     qualified: true,
-    bonusPerPerson: rule.bonus,
-    reason: `達標！每人獎金 ${rule.bonus.toLocaleString()} 元`,
+    bonusPerPerson: appliedBonus,
+    reason: overachieved
+      ? `超標！業績達 ${appliedMinPerf.toLocaleString()} 門檻，每人獎金 ${appliedBonus.toLocaleString()} 元`
+      : `達標！每人獎金 ${appliedBonus.toLocaleString()} 元`,
   };
 }

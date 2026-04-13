@@ -1,4 +1,5 @@
-import { Tabs, Table, Tag, Typography, Statistic, Row, Col, Card, Alert, Button } from 'antd';
+import { useState } from 'react';
+import { Tabs, Table, Tag, Typography, Statistic, Row, Col, Card, Alert, Button, InputNumber } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 import type { ColumnsType } from 'antd/es/table';
@@ -15,8 +16,71 @@ const { Text } = Typography;
 
 const fmt = (n: number) => n.toLocaleString();
 
+// ─── Bonus override state ────────────────────────────────────────
+type BonusKey = 'customerSatisfactionBonus' | 'otherBonus';
+type BonusOverrides = Record<string, { customerSatisfactionBonus: number; otherBonus: number }>;
+
+function getExtra(overrides: BonusOverrides, name: string) {
+  return {
+    customerSatisfactionBonus: overrides[name]?.customerSatisfactionBonus ?? 0,
+    otherBonus: overrides[name]?.otherBonus ?? 0,
+  };
+}
+
+// ─── Shared extra bonus columns ──────────────────────────────────
+function extraBonusCols<T extends { name: string }>(
+  overrides: BonusOverrides,
+  setOverrides: React.Dispatch<React.SetStateAction<BonusOverrides>>
+): ColumnsType<T> {
+  const set = (name: string, field: BonusKey, value: number | null) => {
+    setOverrides((prev) => ({
+      ...prev,
+      [name]: { ...getExtra(prev, name), [field]: value ?? 0 },
+    }));
+  };
+
+  return [
+    {
+      title: '顧客好評獎金',
+      key: 'customerSatisfactionBonus',
+      width: 130,
+      render: (_, r) => (
+        <InputNumber
+          min={0}
+          step={100}
+          value={getExtra(overrides, r.name).customerSatisfactionBonus}
+          onChange={(v) => set(r.name, 'customerSatisfactionBonus', v)}
+          style={{ width: 110 }}
+          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(v) => Number((v ?? '').replace(/,/g, ''))}
+        />
+      ),
+    },
+    {
+      title: '其他加項獎金',
+      key: 'otherBonus',
+      width: 130,
+      render: (_, r) => (
+        <InputNumber
+          min={0}
+          step={100}
+          value={getExtra(overrides, r.name).otherBonus}
+          onChange={(v) => set(r.name, 'otherBonus', v)}
+          style={{ width: 110 }}
+          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(v) => Number((v ?? '').replace(/,/g, ''))}
+        />
+      ),
+    },
+  ];
+}
+
 // ─── Formal ─────────────────────────────────────────────────────
-function FormalTable({ data }: { data: FormalResult[] }) {
+function FormalTable({ data, overrides, setOverrides }: {
+  data: FormalResult[];
+  overrides: BonusOverrides;
+  setOverrides: React.Dispatch<React.SetStateAction<BonusOverrides>>;
+}) {
   const cols: ColumnsType<FormalResult> = [
     { title: '姓名', dataIndex: 'name', fixed: 'left', width: 90 },
     { title: '固定薪', dataIndex: 'fixedSalary', render: fmt },
@@ -56,11 +120,15 @@ function FormalTable({ data }: { data: FormalResult[] }) {
       dataIndex: 'quarterlyTotal',
       render: (v) => <Text type="success">{fmt(v)}</Text>,
     },
+    ...extraBonusCols<FormalResult>(overrides, setOverrides),
     {
       title: '合計',
-      dataIndex: 'grandTotal',
       fixed: 'right',
-      render: (v) => <Text strong type="danger">{fmt(v)}</Text>,
+      render: (_, r) => {
+        const extra = getExtra(overrides, r.name);
+        const total = r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus;
+        return <Text strong type="danger">{fmt(total)}</Text>;
+      },
     },
   ];
   return (
@@ -76,7 +144,11 @@ function FormalTable({ data }: { data: FormalResult[] }) {
 }
 
 // ─── Trainee ────────────────────────────────────────────────────
-function TraineeTable({ data }: { data: TraineeResult[] }) {
+function TraineeTable({ data, overrides, setOverrides }: {
+  data: TraineeResult[];
+  overrides: BonusOverrides;
+  setOverrides: React.Dispatch<React.SetStateAction<BonusOverrides>>;
+}) {
   const cols: ColumnsType<TraineeResult> = [
     { title: '姓名', dataIndex: 'name', fixed: 'left', width: 90 },
     { title: '固定薪', dataIndex: 'fixedSalary', render: fmt },
@@ -94,11 +166,15 @@ function TraineeTable({ data }: { data: TraineeResult[] }) {
       dataIndex: 'quarterlyTotal',
       render: (v) => <Text type="success">{fmt(v)}</Text>,
     },
+    ...extraBonusCols<TraineeResult>(overrides, setOverrides),
     {
       title: '合計',
-      dataIndex: 'grandTotal',
       fixed: 'right',
-      render: (v) => <Text strong type="danger">{fmt(v)}</Text>,
+      render: (_, r) => {
+        const extra = getExtra(overrides, r.name);
+        const total = r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus;
+        return <Text strong type="danger">{fmt(total)}</Text>;
+      },
     },
   ];
   return (
@@ -114,7 +190,11 @@ function TraineeTable({ data }: { data: TraineeResult[] }) {
 }
 
 // ─── Reserve Manager ────────────────────────────────────────────
-function ReserveTable({ data }: { data: ReserveResult[] }) {
+function ReserveTable({ data, overrides, setOverrides }: {
+  data: ReserveResult[];
+  overrides: BonusOverrides;
+  setOverrides: React.Dispatch<React.SetStateAction<BonusOverrides>>;
+}) {
   const cols: ColumnsType<ReserveResult> = [
     { title: '姓名', dataIndex: 'name', fixed: 'left', width: 90 },
     { title: '固定薪', dataIndex: 'fixedSalary', render: fmt },
@@ -135,11 +215,15 @@ function ReserveTable({ data }: { data: ReserveResult[] }) {
       dataIndex: 'quarterlyTotal',
       render: (v) => <Text type="success">{fmt(v)}</Text>,
     },
+    ...extraBonusCols<ReserveResult>(overrides, setOverrides),
     {
       title: '合計',
-      dataIndex: 'grandTotal',
       fixed: 'right',
-      render: (v) => <Text strong type="danger">{fmt(v)}</Text>,
+      render: (_, r) => {
+        const extra = getExtra(overrides, r.name);
+        const total = r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus;
+        return <Text strong type="danger">{fmt(total)}</Text>;
+      },
     },
   ];
   return (
@@ -155,7 +239,11 @@ function ReserveTable({ data }: { data: ReserveResult[] }) {
 }
 
 // ─── Formal Manager ─────────────────────────────────────────────
-function ManagerTable({ data }: { data: ManagerResult[] }) {
+function ManagerTable({ data, overrides, setOverrides }: {
+  data: ManagerResult[];
+  overrides: BonusOverrides;
+  setOverrides: React.Dispatch<React.SetStateAction<BonusOverrides>>;
+}) {
   const cols: ColumnsType<ManagerResult> = [
     { title: '姓名', dataIndex: 'name', fixed: 'left', width: 90 },
     { title: '固定薪', dataIndex: 'fixedSalary', render: fmt },
@@ -176,11 +264,15 @@ function ManagerTable({ data }: { data: ManagerResult[] }) {
       dataIndex: 'quarterlyTotal',
       render: (v) => <Text type="success">{fmt(v)}</Text>,
     },
+    ...extraBonusCols<ManagerResult>(overrides, setOverrides),
     {
       title: '合計',
-      dataIndex: 'grandTotal',
       fixed: 'right',
-      render: (v) => <Text strong type="danger">{fmt(v)}</Text>,
+      render: (_, r) => {
+        const extra = getExtra(overrides, r.name);
+        const total = r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus;
+        return <Text strong type="danger">{fmt(total)}</Text>;
+      },
     },
   ];
   return (
@@ -203,14 +295,32 @@ function downloadExcel(sheetName: string, data: Record<string, unknown>[]) {
   XLSX.writeFile(wb, `${sheetName}_薪資明細.xlsx`);
 }
 
+function enrichForExport<T extends { name: string; grandTotal: number }>(
+  data: T[],
+  overrides: BonusOverrides
+): Record<string, unknown>[] {
+  return data.map((r) => {
+    const extra = getExtra(overrides, r.name);
+    return {
+      ...(r as unknown as Record<string, unknown>),
+      顧客好評獎金: extra.customerSatisfactionBonus,
+      其他加項獎金: extra.otherBonus,
+      合計: r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus,
+    };
+  });
+}
+
 // ─── Summary ─────────────────────────────────────────────────────
-function SummaryRow({ results }: { results: CalculationResults }) {
+function SummaryRow({ results, overrides }: { results: CalculationResults; overrides: BonusOverrides }) {
   const total = [
     ...results.formal,
     ...results.trainee,
     ...results.reserve,
     ...results.manager,
-  ].reduce((sum, r) => sum + r.grandTotal, 0);
+  ].reduce((sum, r) => {
+    const extra = getExtra(overrides, r.name);
+    return sum + r.grandTotal + extra.customerSatisfactionBonus + extra.otherBonus;
+  }, 0);
 
   return (
     <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -248,6 +358,8 @@ interface Props {
 }
 
 export default function ResultTabs({ results }: Props) {
+  const [bonusOverrides, setBonusOverrides] = useState<BonusOverrides>({});
+
   const teamLabel = results.teamBonusQualified
     ? <Tag color="green">團獎達標 ✓ 每人 {fmt(results.teamBonusPerPerson)} 元</Tag>
     : <Tag color="red">團獎未達標</Tag>;
@@ -262,12 +374,12 @@ export default function ResultTabs({ results }: Props) {
         <>
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => downloadExcel('正式淨膚師', results.formal as unknown as Record<string, unknown>[])}
+            onClick={() => downloadExcel('正式淨膚師', enrichForExport(results.formal, bonusOverrides))}
             style={{ marginBottom: 12 }}
           >
             下載 Excel
           </Button>
-          <FormalTable data={results.formal} />
+          <FormalTable data={results.formal} overrides={bonusOverrides} setOverrides={setBonusOverrides} />
         </>
       ),
     });
@@ -280,12 +392,12 @@ export default function ResultTabs({ results }: Props) {
         <>
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => downloadExcel('實習淨膚師', results.trainee as unknown as Record<string, unknown>[])}
+            onClick={() => downloadExcel('實習淨膚師', enrichForExport(results.trainee, bonusOverrides))}
             style={{ marginBottom: 12 }}
           >
             下載 Excel
           </Button>
-          <TraineeTable data={results.trainee} />
+          <TraineeTable data={results.trainee} overrides={bonusOverrides} setOverrides={setBonusOverrides} />
         </>
       ),
     });
@@ -298,12 +410,12 @@ export default function ResultTabs({ results }: Props) {
         <>
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => downloadExcel('儲備店長', results.reserve as unknown as Record<string, unknown>[])}
+            onClick={() => downloadExcel('儲備店長', enrichForExport(results.reserve, bonusOverrides))}
             style={{ marginBottom: 12 }}
           >
             下載 Excel
           </Button>
-          <ReserveTable data={results.reserve} />
+          <ReserveTable data={results.reserve} overrides={bonusOverrides} setOverrides={setBonusOverrides} />
         </>
       ),
     });
@@ -316,12 +428,12 @@ export default function ResultTabs({ results }: Props) {
         <>
           <Button
             icon={<DownloadOutlined />}
-            onClick={() => downloadExcel('正式店長', results.manager as unknown as Record<string, unknown>[])}
+            onClick={() => downloadExcel('正式店長', enrichForExport(results.manager, bonusOverrides))}
             style={{ marginBottom: 12 }}
           >
             下載 Excel
           </Button>
-          <ManagerTable data={results.manager} />
+          <ManagerTable data={results.manager} overrides={bonusOverrides} setOverrides={setBonusOverrides} />
         </>
       ),
     });
@@ -329,7 +441,7 @@ export default function ResultTabs({ results }: Props) {
 
   return (
     <div>
-      <SummaryRow results={results} />
+      <SummaryRow results={results} overrides={bonusOverrides} />
       <div style={{ marginBottom: 12 }}>{teamLabel}</div>
       {items.length === 0 ? (
         <Alert message="尚無計算結果" type="info" />
