@@ -12,11 +12,11 @@ function calcPersonCountBonus(count: number): number {
   return bonus;
 }
 
-/** 充值目標達成獎 (需面膜7組) */
+/** 充值目標達成獎 (需產品7組) */
 function calcChargeTargetBonus(performance: number, maskCount: number): { bonus: number; reason: string } {
-  if (maskCount < 7) return { bonus: 0, reason: `面膜未達責任額 ${maskCount}/7 組` };
-  if (performance >= 300000) return { bonus: 7000, reason: `業績30萬+面膜${maskCount}組達標` };
-  if (performance >= 250000) return { bonus: 2000, reason: `業績25萬+面膜${maskCount}組達標` };
+  if (maskCount < 7) return { bonus: 0, reason: `產品未達責任額 ${maskCount}/7 組` };
+  if (performance >= 300000) return { bonus: 7000, reason: `業績30萬+產品${maskCount}組達標` };
+  if (performance >= 250000) return { bonus: 2000, reason: `業績25萬+產品${maskCount}組達標` };
   return { bonus: 0, reason: `業績未達25萬 (${performance.toLocaleString()})` };
 }
 

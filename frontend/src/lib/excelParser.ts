@@ -55,7 +55,7 @@ export async function parseExcel(file: File): Promise<ExcelData> {
     }
   }
 
-  // ─── Mask sales (水光面膜3入) from date sheets ───────────────
+  // ─── Product sales (任何產品) from date sheets ───────────────
   const maskSales: Record<string, number> = {};
 
   for (const sheetName of dateSheets) {
@@ -72,7 +72,7 @@ export async function parseExcel(file: File): Promise<ExcelData> {
       if (!row) continue;
       for (const colIdx of [5, 6, 7]) {
         const cellVal = row[colIdx];
-        if (cellVal != null && String(cellVal).includes('水光面膜3入')) {
+        if (cellVal != null && String(cellVal).trim() !== '') {
           // N column = index 13
           const therapistId = row[13];
           if (therapistId != null) {
