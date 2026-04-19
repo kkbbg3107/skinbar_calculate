@@ -70,11 +70,10 @@ function checkMetricsDisqualification(emp: EmployeeWithRole): { disqualified: bo
 
 export function calcFormalSalary(
   emp: EmployeeWithRole,
-  maskSales: Record<string, number>,
   teamBonusPerPerson: number,
   teamQualified: boolean
 ): FormalResult {
-  const maskCount = maskSales[String(emp.therapistId)] ?? 0;
+  const maskCount = emp.activityProductCount;
 
   // 3項指標個人資格檢查
   const { disqualified, failedMetrics } = checkMetricsDisqualification(emp);

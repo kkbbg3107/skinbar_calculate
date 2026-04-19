@@ -55,38 +55,23 @@ export async function parseExcel(file: File): Promise<ExcelData> {
     }
   }
 
-  // ─── Product sales (任何產品) from date sheets ───────────────
-  const maskSales: Record<string, number> = {};
-
-  for (const sheetName of dateSheets) {
-    const sheet = workbook.Sheets[sheetName];
-    const sheetRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      defval: null,
-      raw: true,
-    });
-
-    // Start from row 21 (index 20), check F/G/H columns (5/6/7)
-    for (let rowIdx = 20; rowIdx < sheetRows.length; rowIdx++) {
-      const row = sheetRows[rowIdx];
-      if (!row) continue;
-      for (const colIdx of [5, 6, 7]) {
-        const cellVal = row[colIdx];
-        if (cellVal != null && String(cellVal).trim() !== '') {
-          // N column = index 13
-          const therapistId = row[13];
-          if (therapistId != null) {
-            const key = String(Math.round(Number(therapistId)));
-            maskSales[key] = (maskSales[key] ?? 0) + 1;
-          }
-          break;
-        }
-      }
-    }
-  }
-
   // ─── Monthly target from E23 (月報表彙整 row index 22, col index 4) ──
   const monthlyTarget = rows[22] ? toNum(rows[22][4]) : 0;
+
+  // ─── 公司特別計算項目：活動產品組數 (Z欄) ────────────────────────
+  // W欄 (22) rows 2-10 have names like "1.林欣儀Mumu(儲)", Z欄 (25) has count
+  const activityProductMap: Record<string, number> = {};
+  for (let rowIdx = 1; rowIdx < 12; rowIdx++) {
+    const row = rows[rowIdx];
+    if (!row) continue;
+    const nameCell = row[22]; // W
+    if (nameCell == null || String(nameCell).trim() === '') continue;
+    const cleaned = String(nameCell).trim()
+      .replace(/^\d+\./, '')   // remove leading "N."
+      .replace(/\([^)]+\)$/, '') // remove trailing "(role)"
+      .trim();
+    if (cleaned) activityProductMap[cleaned] = toNum(row[25]); // Z
+  }
 
   // ─── Employee rows from 月報表彙整 ───────────────────────────
   const employees: RawEmployee[] = [];
@@ -127,9 +112,12 @@ export async function parseExcel(file: File): Promise<ExcelData> {
       newCustomerRate: toNum(row[8]),      // I：新客成交率
       vipUpgradeRate: toNum(row[17]),      // R：VIP成交率
       appointmentRate: toNum(row[23]),     // X：預約率
-      advancedCourseBonus: toNum(row[18]), // S：進階工獎累計
-      skillBonusTotal: toNum(row[19]),     // T：手技工獎累計
-      productSalesBonus: toNum(row[20]),   // U：產品銷售工獎
+      advancedCourseBonus: toNum(row[18]),   // S：進階工獎累計
+      skillBonusTotal: toNum(row[19]),       // T：手技工獎累計
+      productSalesBonus: toNum(row[20]),     // U：產品銷售工獎
+      activityProductCount: activityProductMap[
+        nameStr.replace(/^\d+\./, '').replace(/\([^)]+\)$/, '').trim()
+      ] ?? 0, // Z：活動產品組數
     });
   }
 
@@ -137,5 +125,5 @@ export async function parseExcel(file: File): Promise<ExcelData> {
     throw new Error('無法找到員工數據，請確認月報表彙整工作表格式正確（員工資料應從第14行開始）');
   }
 
-  return { employees, totalPerformance, totalConsumption, monthlyTarget, maskSales };
+  return { employees, totalPerformance, totalConsumption, monthlyTarget };
 }

@@ -12,6 +12,7 @@ export interface RawEmployee {
   advancedCourseBonus: number;
   skillBonusTotal: number;
   productSalesBonus: number;
+  activityProductCount: number; // Z欄：活動產品組數
 }
 
 export interface EmployeeWithRole extends RawEmployee {
@@ -24,7 +25,6 @@ export interface ExcelData {
   totalPerformance: number;
   totalConsumption: number;
   monthlyTarget: number;             // E23：當月目標
-  maskSales: Record<string, number>; // therapistId -> count
 }
 
 // ─── Result types ───────────────────────────────────────────────

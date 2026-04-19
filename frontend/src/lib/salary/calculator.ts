@@ -23,7 +23,7 @@ export function calculateAll(
 
   return {
     formal: formal.map((emp) =>
-      calcFormalSalary(emp, excelData.maskSales, bonusPerPerson, qualified)
+      calcFormalSalary(emp, bonusPerPerson, qualified)
     ),
     trainee: trainee.map((emp) => calcTraineeSalary(emp)),
     reserve: reserve.map((emp) =>
